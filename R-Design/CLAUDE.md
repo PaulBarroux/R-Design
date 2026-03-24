@@ -1,10 +1,8 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
-Workshop starter project for a multiplayer "coopetition" game. Players use their phones as controllers to play together on a single shared screen. Target audience: UX/UI 3rd year students — code must stay simple and readable.
+Pixel War — a multiplayer r/place-style game. Players use their phones to place colored pixels on a shared canvas displayed on a big screen. Inspired by CDawgVA's pixel wars.
 
 ## Commands
 
@@ -16,30 +14,54 @@ No test suite, no linter, no build step. Everything is vanilla HTML/CSS/JS serve
 
 ## Architecture
 
-The project has three parts that communicate via native WebSocket (`ws` package):
-
 ```
-Phone (controller/) ---WebSocket---> server.js ---WebSocket---> Shared screen (game/)
+Phone (controller/) ---WebSocket---> server.js ---WebSocket---> Big screen (game/)
 ```
 
-- **`server.js`** — Express + `ws` (WebSocket) server. Holds the authoritative game state (a `players` object keyed by incremental ID). Serves both frontends as static files (`/controller` and `/game` routes). Broadcasts the full state to all clients on every change.
-- **`controller/`** — Mobile-first UI. Two screens: join form (pseudo + team selection) then a D-pad with touch support. Emits `join` and `move` events to the server.
-- **`game/`** — Display-only page for the projector/TV. Listens to `state` events and renders players as positioned DOM elements inside a fixed-size arena (1200×800). No user interaction.
+- **`server.js`** — Express + `ws` server. Authoritative state: canvas (200×200 grid), players, teams, cooldowns, leaderboard. Serves both frontends as static files.
+- **`controller/`** — Mobile-first UI. Join screen (pseudo + reconnect ID), then pixel canvas + color palette + team management. Emits `join`, `reconnect`, `placePixel`, `createTeam`, `joinTeam`, `leaveTeam`, `setOverlay`.
+- **`game/`** — Display-only page for the projector/TV. Shows canvas, leaderboard (alternates individual/team), QR code. No user interaction.
 
 ## WebSocket Protocol
 
-All messages are JSON: `{ type, data }`. No library on the client — uses the browser's native `WebSocket`.
+All messages are JSON: `{ type, data }`.
 
 | type | Direction | data |
 |------|-----------|------|
-| `join` | controller → server | `{ pseudo, team }` |
-| `joined` | server → controller | player object (confirmation) |
-| `move` | controller → server | `"up"` / `"down"` / `"left"` / `"right"` |
-| `state` | server → all clients | `{ players, arena }` |
+| `join` | controller → server | `{ pseudo }` |
+| `reconnect` | controller → server | `{ playerId }` |
+| `joined` | server → controller | `{ playerId, pseudo, cooldown, palette, canvasSize }` |
+| `placePixel` | controller → server | `{ x, y, color }` |
+| `pixelPlaced` | server → controller | `{ x, y, color, cooldown, nextPlacement }` |
+| `pixelUpdate` | server → all | `{ x, y, color, playerId }` |
+| `createTeam` | controller → server | `{ name, color }` |
+| `joinTeam` | controller → server | `{ teamId }` |
+| `leaveTeam` | controller → server | `{}` |
+| `teamJoined` | server → controller | `{ teamId, team }` |
+| `teamsUpdate` | server → all | teams object |
+| `leaderboard` | server → all | `{ individual, teams }` |
+| `init` | server → new client | full state |
+| `state` | server → all | full state (periodic) |
+| `error` | server → controller | `{ message }` |
+| `cooldownError` | server → controller | `{ message, remaining }` |
+
+## Configuration
+
+All constants are at the top of `server.js`:
+
+| Constant | Default | Description |
+|----------|---------|-------------|
+| `CANVAS_WIDTH` | 200 | Canvas width in pixels |
+| `CANVAS_HEIGHT` | 200 | Canvas height in pixels |
+| `DEFAULT_COOLDOWN` | 30s | Base cooldown between pixel placements |
+| `COLOR_PALETTE` | 20 colors | Available colors for players |
 
 ## Key Design Decisions
 
-- State is server-authoritative: clients never modify positions locally.
-- The `state` event broadcasts the entire players object (not deltas) — simple but doesn't scale past ~50 players.
-- Players are DOM elements (not canvas) so students can style them with CSS.
-- Two teams only: `"rouge"` and `"bleu"`.
+- State is server-authoritative: clients never modify the canvas locally.
+- Players get a 5-character reconnection ID (no accounts needed).
+- Canvas is a 2D array `[y][x]` of hex colors or null.
+- `pixelUpdate` broadcasts single pixel changes (lightweight). `state` broadcasts full canvas (heavy, used on connect/reconnect).
+- Leaderboard counts pixels currently owned on the canvas (last placer wins).
+- Teams are dynamic: any player can create or join one.
+- Team overlays (templates) are stored server-side and sent to team members.

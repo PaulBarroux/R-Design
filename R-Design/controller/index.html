@@ -2,73 +2,100 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <!-- Empecher le zoom sur mobile pour que le controller se comporte comme une app -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-    <title>Controller</title>
+    <title>Pixel War — Controller</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
 
-    <!--
-      ECRAN 1 : Formulaire pour rejoindre la partie
-      Cet ecran s'affiche quand le joueur arrive sur la page.
-      Il disparait une fois que le serveur confirme la connexion.
-    -->
+    <!-- ================================================================
+         ECRAN 1 : Rejoindre la partie (ou se reconnecter)
+         ================================================================ -->
     <div id="screen-join" class="screen">
-      <h1>Rejoindre la partie</h1>
+      <h1>🎨 Pixel War</h1>
 
       <div class="form">
-        <!-- Champ pour entrer son pseudo -->
         <label for="pseudo">Pseudo</label>
-        <input type="text" id="pseudo" placeholder="Ton pseudo..." maxlength="12" autocomplete="off" />
+        <input type="text" id="pseudo" placeholder="Ton pseudo..." maxlength="16" autocomplete="off" />
 
-        <!-- Choix de l'equipe (rouge ou bleu) -->
-        <label>Equipe</label>
-        <div class="team-select">
-          <!-- Le bouton "rouge" est selectionne par defaut (class "selected") -->
-          <button class="team-btn selected" data-team="rouge">Rouge</button>
-          <button class="team-btn" data-team="bleu">Bleu</button>
-        </div>
-
-        <!-- Bouton pour envoyer le formulaire au serveur -->
         <button id="btn-join" class="btn-primary">Rejoindre</button>
+
+        <div class="separator">ou</div>
+
+        <label for="reconnect-id">Se reconnecter (ID)</label>
+        <input type="text" id="reconnect-id" placeholder="Ex: AB3K9" maxlength="5" autocomplete="off"
+               style="text-transform: uppercase; text-align: center; letter-spacing: 0.3em; font-weight: 700;" />
+        <button id="btn-reconnect" class="btn-secondary">Reconnecter</button>
       </div>
     </div>
 
-    <!--
-      ECRAN 2 : Le controller (manette)
-      Cache par defaut (class "hidden"), s'affiche apres la connexion.
-      Contient : infos du joueur, scores, timer, et le D-pad.
-    -->
-    <div id="screen-controller" class="screen hidden">
+    <!-- ================================================================
+         ECRAN 2 : Interface de jeu (palette + canvas + equipes)
+         ================================================================ -->
+    <div id="screen-game" class="screen hidden">
 
-      <!-- Mini HUD : pseudo + equipe + scores + timer -->
-      <div class="controller-hud">
-        <div class="player-info">
-          <span id="player-pseudo">-</span>
-          <span id="player-team" class="badge">-</span>
-        </div>
-        <!-- Scores et timer affiches sur le telephone -->
-        <div class="controller-score">
-          <span class="mini-score rouge"><span id="ctrl-score-rouge">0</span></span>
-          <span id="ctrl-timer">5:00</span>
-          <span class="mini-score bleu"><span id="ctrl-score-bleu">0</span></span>
-        </div>
+      <!-- Barre d'info joueur -->
+      <div class="player-bar">
+        <span id="display-pseudo">—</span>
+        <span id="display-id" class="player-id">—</span>
+        <span id="display-team" class="badge">Solo</span>
       </div>
 
-      <!--
-        D-PAD : les 4 fleches directionnelles
-        Chaque bouton a un attribut "data-dir" qui indique la direction.
-        Le script JS lit cet attribut pour savoir quel message envoyer au serveur.
-      -->
-      <div class="dpad">
-        <button class="arrow arrow-up" data-dir="up">&#9650;</button>
-        <div class="dpad-middle">
-          <button class="arrow arrow-left" data-dir="left">&#9664;</button>
-          <div class="arrow-center"></div>
-          <button class="arrow arrow-right" data-dir="right">&#9654;</button>
+      <!-- Canvas interactif (mini-vue du canvas complet) -->
+      <div id="canvas-wrapper">
+        <canvas id="pixel-canvas"></canvas>
+        <div id="pixel-info-tooltip" class="hidden"></div>
+      </div>
+
+      <!-- Coordonnees du pixel survole -->
+      <div id="coords-display">
+        <span id="coords-text">—</span>
+      </div>
+
+      <!-- Palette de couleurs -->
+      <div id="palette"></div>
+
+      <!-- Cooldown timer -->
+      <div id="cooldown-bar">
+        <div id="cooldown-fill"></div>
+        <span id="cooldown-text">Pret !</span>
+      </div>
+
+      <!-- Navigation par onglets -->
+      <div class="tabs">
+        <button class="tab active" data-tab="canvas-tab">Canvas</button>
+        <button class="tab" data-tab="team-tab">Equipe</button>
+      </div>
+
+      <!-- Contenu onglet equipe -->
+      <div id="team-tab" class="tab-content hidden">
+        <!-- Si pas d'equipe -->
+        <div id="no-team">
+          <h3>Rejoindre ou creer une equipe</h3>
+
+          <div class="form">
+            <label>Creer une equipe</label>
+            <input type="text" id="team-name" placeholder="Nom de l'equipe" maxlength="24" autocomplete="off" />
+            <div id="team-color-picker" class="team-color-picker"></div>
+            <button id="btn-create-team" class="btn-primary">Creer</button>
+          </div>
+
+          <div class="separator">ou rejoindre</div>
+
+          <div id="teams-list" class="teams-list">
+            <p class="muted">Aucune equipe pour l'instant</p>
+          </div>
         </div>
-        <button class="arrow arrow-down" data-dir="down">&#9660;</button>
+
+        <!-- Si dans une equipe -->
+        <div id="in-team" class="hidden">
+          <div class="team-info">
+            <div id="my-team-color" class="team-dot-big"></div>
+            <h3 id="my-team-name">—</h3>
+            <p id="my-team-members">0 membres</p>
+          </div>
+          <button id="btn-leave-team" class="btn-danger">Quitter l'equipe</button>
+        </div>
       </div>
     </div>
 

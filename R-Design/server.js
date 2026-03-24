@@ -1,49 +1,40 @@
 // =============================================================================
-// SERVEUR DE JEU — server.js
+// SERVEUR PIXEL WAR — server.js
 // =============================================================================
 //
-// Ce fichier est le "cerveau" du jeu. Il fait 3 choses :
+// Ce fichier est le "cerveau" du jeu Pixel War. Il fait 4 choses :
 //   1. Servir les pages web (controller + ecran de jeu) via Express
 //   2. Gerer les connexions WebSocket (communication temps reel)
-//   3. Stocker et mettre a jour l'etat du jeu (joueurs, fruits, scores, timer)
+//   3. Stocker et mettre a jour l'etat du jeu (canvas, joueurs, equipes)
+//   4. Gerer le systeme d'equipes (creation, adhesion, overlays)
 //
-// Le serveur est AUTORITAIRE : c'est lui qui decide de la position des joueurs,
-// des scores, etc. Les clients (telephones, ecran) ne font qu'afficher ce que
-// le serveur leur envoie.
+// Le serveur est AUTORITAIRE : c'est lui qui valide chaque placement de pixel,
+// gere les cooldowns, et maintient l'etat du canvas.
 //
 // =============================================================================
 
 // --- Imports ---
-// Express : framework web pour servir les fichiers HTML/CSS/JS
 const express = require("express");
-// createServer : cree un serveur HTTP a partir d'Express
 const { createServer } = require("http");
-// WebSocketServer : gere les connexions WebSocket (communication temps reel)
 const { WebSocketServer } = require("ws");
-// path : utilitaire pour construire des chemins de fichiers
 const path = require("path");
-// os : pour recuperer l'adresse IP locale de la machine
 const os = require("os");
 
 // --- Initialisation du serveur ---
-const app = express(); // Application Express
-const http = createServer(app); // Serveur HTTP qui enveloppe Express
-const wss = new WebSocketServer({ server: http }); // Serveur WebSocket attache au serveur HTTP
+const app = express();
+const http = createServer(app);
+const wss = new WebSocketServer({ server: http });
 
 const PORT = 3000;
 
 // =============================================================================
 // FICHIERS STATIQUES
 // =============================================================================
-// Express sert les dossiers "controller" et "game" comme des sites web statiques.
-// Quand un telephone accede a http://IP:3000/controller, il recoit les fichiers
-// du dossier "controller/" (index.html, style.css, script.js).
-// Meme chose pour l'ecran de jeu avec /game.
 
 app.use("/controller", express.static(path.join(__dirname, "controller")));
 app.use("/game", express.static(path.join(__dirname, "game")));
 
-// Si quelqu'un accede a la racine "/", on le redirige vers le controller
+// Racine "/" redirige vers le controller (les telephones)
 app.get("/", (req, res) => {
   res.redirect("/controller");
 });
@@ -52,178 +43,151 @@ app.get("/", (req, res) => {
 // CONFIGURATION DU JEU
 // =============================================================================
 // Toutes les constantes sont ici pour etre faciles a modifier.
-// Changez ces valeurs pour ajuster le gameplay !
 
-const ARENA = { width: 1200, height: 800 }; // Taille de l'arene en pixels
-const SPEED = 5; // Vitesse de deplacement des joueurs (pixels par mouvement)
-const GAME_DURATION = 5 * 60 * 1000; // Duree d'une partie : 5 minutes (en ms)
-const RESTART_DELAY = 30 * 1000; // Delai avant relance : 30 secondes (en ms)
-const FRUIT_COUNT = 5; // Nombre de fruits presents en meme temps sur la map
-const PICKUP_DISTANCE = 30; // Distance (en pixels) pour ramasser un fruit
+const CANVAS_WIDTH = 200;   // Largeur du canvas en pixels
+const CANVAS_HEIGHT = 200;  // Hauteur du canvas en pixels
+const DEFAULT_COOLDOWN = 30 * 1000; // Cooldown par defaut : 30 secondes (en ms)
+
+// Palette de couleurs disponibles pour les joueurs
+// Inspiree de r/place — 16 couleurs bien distinctes
+const COLOR_PALETTE = [
+  "#FF4500", // Rouge-orange
+  "#FF0000", // Rouge
+  "#BE0039", // Cramoisi
+  "#FF6D00", // Orange
+  "#FFA800", // Orange clair
+  "#FFD635", // Jaune
+  "#00A368", // Vert
+  "#00CC78", // Vert clair
+  "#7EED56", // Vert lime
+  "#009EAA", // Teal
+  "#3690EA", // Bleu
+  "#2450A4", // Bleu fonce
+  "#493AC1", // Indigo
+  "#811E9F", // Violet
+  "#FF3881", // Rose
+  "#FFFFFF", // Blanc
+  "#D4D7D9", // Gris clair
+  "#898D90", // Gris
+  "#515252", // Gris fonce
+  "#000000", // Noir
+];
 
 // =============================================================================
 // ETAT DU JEU
 // =============================================================================
-// Ces variables contiennent TOUT l'etat du jeu a un instant T.
-// C'est le serveur qui modifie ces variables, puis les envoie aux clients.
 
-let players = {}; // Objet contenant tous les joueurs { id: { id, pseudo, team, x, y } }
-let fruits = {}; // Objet contenant tous les fruits { id: { id, emoji, x, y } }
-let scores = { rouge: 0, bleu: 0 }; // Score de chaque equipe
-
-// Phase de jeu :
-//   "waiting" = en attente du premier joueur
-//   "playing" = partie en cours
-//   "ended"   = partie terminee, en attente de relance
-let gamePhase = "waiting";
-
-let gameEndTime = 0; // Timestamp (ms) de fin de partie
-let restartTime = 0; // Timestamp (ms) de relance
-let nextId = 1; // Compteur pour generer des IDs uniques de joueurs
-let nextFruitId = 1; // Compteur pour generer des IDs uniques de fruits
-let gameInterval = null; // Reference au setInterval du tick de jeu
-let restartTimeout = null; // Reference au setTimeout de relance
-
-// =============================================================================
-// GESTION DES FRUITS
-// =============================================================================
-
-// Liste des emojis de fruits possibles
-const FRUIT_TYPES = ["🍎", "🍊", "🍋", "🍇", "🍓", "🍑", "🍒", "🥝", "🍌", "🍐"];
-
-// Retourne un emoji de fruit au hasard
-function randomFruitType() {
-  return FRUIT_TYPES[Math.floor(Math.random() * FRUIT_TYPES.length)];
+// Le canvas : tableau 2D [y][x] ou chaque case est une couleur hex ou null
+// null = pixel vide (non colore)
+const canvas = [];
+for (let y = 0; y < CANVAS_HEIGHT; y++) {
+  canvas[y] = [];
+  for (let x = 0; x < CANVAS_WIDTH; x++) {
+    canvas[y][x] = null;
+  }
 }
 
-// Cree un nouveau fruit a une position aleatoire dans l'arene
-function spawnFruit() {
-  const id = String(nextFruitId++);
-  fruits[id] = {
-    id,
-    emoji: randomFruitType(),
-    // Position aleatoire avec une marge de 40px par rapport aux bords
-    x: Math.floor(Math.random() * (ARENA.width - 80)) + 40,
-    y: Math.floor(Math.random() * (ARENA.height - 80)) + 40,
-  };
+// Joueurs connectes : cle = ID unique de 5 caracteres, valeur = objet joueur
+// On utilise l'ID 5 chars comme cle pour permettre la reconnexion
+const players = {};
+
+// Equipes : cle = ID auto-increment, valeur = objet equipe
+const teams = {};
+let nextTeamId = 1;
+
+// Historique des pixels places (pour le leaderboard)
+// Chaque entree : { playerId, x, y, color, timestamp }
+const pixelHistory = [];
+
+// =============================================================================
+// GENERATION D'ID UNIQUE (5 caracteres)
+// =============================================================================
+// Cet ID permet au joueur de se reconnecter plus tard.
+// Format : 5 caracteres alphanumeriques (lettres majuscules + chiffres)
+
+function generatePlayerId() {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // Sans 0/O/1/I pour eviter la confusion
+  let id;
+  do {
+    id = "";
+    for (let i = 0; i < 5; i++) {
+      id += chars[Math.floor(Math.random() * chars.length)];
+    }
+  } while (players[id]); // S'assurer que l'ID n'existe pas deja
   return id;
 }
 
-// S'assure qu'il y a toujours FRUIT_COUNT fruits sur la map
-// Si des fruits ont ete ramasces, en cree de nouveaux pour compenser
-function fillFruits() {
-  while (Object.keys(fruits).length < FRUIT_COUNT) {
-    spawnFruit();
-  }
+// =============================================================================
+// CALCUL DU COOLDOWN DYNAMIQUE
+// =============================================================================
+// Le cooldown peut etre ajuste selon le nombre de joueurs connectes.
+// Plus il y a de joueurs, plus le cooldown peut etre reduit.
+
+function getCurrentCooldown() {
+  const playerCount = Object.keys(players).length;
+  if (playerCount > 100) return 10 * 1000;  // 10s si beaucoup de joueurs
+  if (playerCount > 50) return 15 * 1000;   // 15s
+  if (playerCount > 20) return 20 * 1000;   // 20s
+  return DEFAULT_COOLDOWN;                    // 30s par defaut
 }
 
 // =============================================================================
-// COLLISION JOUEUR / FRUIT
+// LEADERBOARD
 // =============================================================================
-// Verifie si un joueur est assez proche d'un fruit pour le ramasser.
-// On utilise la distance euclidienne (theoreme de Pythagore) :
-//   distance = racine( (x2-x1)² + (y2-y1)² )
+// Calcule les classements individuels et par equipe.
 
-function checkPickup(player) {
-  for (const [id, fruit] of Object.entries(fruits)) {
-    const dx = player.x - fruit.x; // Distance horizontale
-    const dy = player.y - fruit.y; // Distance verticale
-    const distance = Math.sqrt(dx * dx + dy * dy); // Distance reelle
+function getLeaderboard() {
+  // --- Classement individuel ---
+  // Compter les pixels actuellement sur le canvas pour chaque joueur
+  const playerPixelCount = {};
 
-    if (distance < PICKUP_DISTANCE) {
-      // Le joueur est assez proche : il ramasse le fruit !
-      scores[player.team]++; // +1 point pour son equipe
-      console.log(`${player.pseudo} a ramasse un fruit ! (${player.team}: ${scores[player.team]})`);
-      delete fruits[id]; // Supprime le fruit ramasse
-      fillFruits(); // S'assure qu'il y a toujours assez de fruits
-      return true; // Un fruit a ete ramasse
+  // Compter les pixels actifs sur le canvas (pas l'historique, le canvas actuel)
+  // On parcourt l'historique mais on ne compte que le dernier placement par pixel
+  const currentPixelOwner = {}; // "x,y" -> playerId
+  for (const entry of pixelHistory) {
+    currentPixelOwner[`${entry.x},${entry.y}`] = entry.playerId;
+  }
+
+  // Compter combien de pixels chaque joueur possede actuellement
+  for (const owner of Object.values(currentPixelOwner)) {
+    playerPixelCount[owner] = (playerPixelCount[owner] || 0) + 1;
+  }
+
+  const individualBoard = Object.entries(playerPixelCount)
+    .map(([playerId, count]) => ({
+      playerId,
+      pseudo: players[playerId] ? players[playerId].pseudo : "???",
+      teamId: players[playerId] ? players[playerId].teamId : null,
+      count,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 15); // Top 15
+
+  // --- Classement par equipe ---
+  const teamPixelCount = {};
+  for (const [playerId, count] of Object.entries(playerPixelCount)) {
+    const player = players[playerId];
+    if (player && player.teamId) {
+      teamPixelCount[player.teamId] = (teamPixelCount[player.teamId] || 0) + count;
     }
   }
-  return false; // Aucun fruit ramasse
-}
 
-// =============================================================================
-// GESTION DE LA PARTIE (START / END / RESTART)
-// =============================================================================
+  const teamBoard = Object.entries(teamPixelCount)
+    .map(([teamId, count]) => ({
+      teamId,
+      name: teams[teamId] ? teams[teamId].name : "???",
+      color: teams[teamId] ? teams[teamId].color : "#888",
+      count,
+    }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 10); // Top 10
 
-// Demarre une nouvelle partie
-function startGame() {
-  // Remettre les scores a zero
-  scores = { rouge: 0, bleu: 0 };
-
-  // Regenerer tous les fruits
-  fruits = {};
-  fillFruits();
-
-  // Passer en phase de jeu
-  gamePhase = "playing";
-  gameEndTime = Date.now() + GAME_DURATION; // Calcule quand la partie se termine
-
-  // Repositionner tous les joueurs deja connectes a des positions aleatoires
-  for (const player of Object.values(players)) {
-    player.x = Math.floor(Math.random() * (ARENA.width - 100)) + 50;
-    player.y = Math.floor(Math.random() * (ARENA.height - 100)) + 50;
-  }
-
-  console.log("--- Partie lancee ! ---");
-  broadcastState(); // Envoyer l'etat initial a tout le monde
-
-  // TICK DE JEU : toutes les secondes, on :
-  //   - Verifie si la partie est terminee
-  //   - S'assure qu'il y a assez de fruits
-  //   - Envoie l'etat du jeu a tous les clients (pour mettre a jour le timer)
-  gameInterval = setInterval(() => {
-    if (Date.now() >= gameEndTime) {
-      endGame(); // Le temps est ecoule !
-    } else {
-      fillFruits(); // S'assurer qu'il y a toujours des fruits
-      broadcastState(); // Envoyer l'etat (met a jour le timer cote client)
-    }
-  }, 1000); // 1000ms = 1 seconde
-}
-
-// Termine la partie en cours
-function endGame() {
-  // Arreter le tick de jeu
-  clearInterval(gameInterval);
-  gameInterval = null;
-
-  // Passer en phase "terminee"
-  gamePhase = "ended";
-  restartTime = Date.now() + RESTART_DELAY;
-
-  // Determiner le gagnant
-  const winner =
-    scores.rouge > scores.bleu
-      ? "rouge"
-      : scores.bleu > scores.rouge
-        ? "bleu"
-        : "egalite";
-
-  console.log(`--- Partie terminee ! Rouge: ${scores.rouge} | Bleu: ${scores.bleu} | Gagnant: ${winner} ---`);
-
-  // Envoyer l'ecran de fin a tous les clients
-  broadcast("gameOver", {
-    scores,
-    winner,
-    restartIn: RESTART_DELAY, // Temps avant relance (en ms)
-  });
-
-  // Programmer la relance automatique apres RESTART_DELAY
-  restartTimeout = setTimeout(() => {
-    startGame();
-  }, RESTART_DELAY);
+  return { individual: individualBoard, teams: teamBoard };
 }
 
 // =============================================================================
 // ENVOI DE MESSAGES WEBSOCKET
 // =============================================================================
-//
-// Le protocole est simple : tous les messages sont du JSON avec cette structure :
-//   { type: "nomDuMessage", data: { ... } }
-//
-// Par exemple : { type: "move", data: "up" }
-//              { type: "state", data: { players, fruits, scores, ... } }
 
 // Envoie un message a UN SEUL client
 function send(ws, type, data) {
@@ -232,7 +196,7 @@ function send(ws, type, data) {
   }
 }
 
-// Envoie un message a TOUS les clients connectes (broadcast)
+// Envoie un message a TOUS les clients connectes
 function broadcast(type, data) {
   const msg = JSON.stringify({ type, data });
   wss.clients.forEach((client) => {
@@ -242,122 +206,451 @@ function broadcast(type, data) {
   });
 }
 
-// Envoie l'etat complet du jeu a tous les clients
-// C'est cette fonction qui est appelee a chaque changement dans le jeu
+// Envoie l'etat complet du canvas + leaderboard a tous les clients
+// Appele periodiquement et apres chaque placement de pixel
 function broadcastState() {
   broadcast("state", {
-    players, // Tous les joueurs avec leurs positions
-    fruits, // Tous les fruits avec leurs positions
-    scores, // Scores des deux equipes
-    arena: ARENA, // Dimensions de l'arene
-    phase: gamePhase, // Phase actuelle (waiting/playing/ended)
-    // Temps restant en ms (0 si la partie n'est pas en cours)
-    timeLeft: gamePhase === "playing" ? Math.max(0, gameEndTime - Date.now()) : 0,
+    canvas,
+    canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    leaderboard: getLeaderboard(),
+    teams: getTeamsPublicData(),
+    playerCount: Object.keys(players).length,
+    palette: COLOR_PALETTE,
   });
+}
+
+// Envoie juste le pixel modifie (plus leger que l'etat complet)
+// Utilise apres chaque placement pour une mise a jour rapide
+function broadcastPixelUpdate(x, y, color, playerId) {
+  broadcast("pixelUpdate", { x, y, color, playerId });
+}
+
+// Envoie le leaderboard mis a jour
+function broadcastLeaderboard() {
+  broadcast("leaderboard", getLeaderboard());
+}
+
+// =============================================================================
+// DONNEES PUBLIQUES DES EQUIPES
+// =============================================================================
+// Retourne les infos des equipes sans les donnees sensibles
+
+function getTeamsPublicData() {
+  const result = {};
+  for (const [id, team] of Object.entries(teams)) {
+    result[id] = {
+      id: team.id,
+      name: team.name,
+      color: team.color,
+      memberCount: team.members.length,
+      creatorId: team.creatorId,
+      // Overlay : tableau 2D avec les pixels-guide (ou null si pas d'overlay)
+      overlay: team.overlay || null,
+    };
+  }
+  return result;
 }
 
 // =============================================================================
 // GESTION DES CONNEXIONS WEBSOCKET
 // =============================================================================
-// Chaque fois qu'un client (telephone ou ecran) se connecte, ce code s'execute.
-// Le serveur ecoute les messages du client et reagit en consequence.
 
 wss.on("connection", (ws) => {
-  // Attribuer un ID unique a ce client
-  const id = String(nextId++);
-  ws._playerId = id;
-  console.log(`Connexion: ${id}`);
+  console.log("Nouvelle connexion WebSocket");
+
+  // Envoyer l'etat initial au nouveau client
+  send(ws, "init", {
+    canvas,
+    canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+    leaderboard: getLeaderboard(),
+    teams: getTeamsPublicData(),
+    playerCount: Object.keys(players).length,
+    palette: COLOR_PALETTE,
+  });
 
   // --- Reception des messages du client ---
   ws.on("message", (raw) => {
-    // Parser le message JSON
     let msg;
     try {
       msg = JSON.parse(raw);
     } catch {
-      return; // Message invalide, on l'ignore
+      return; // Message invalide
     }
 
     const { type, data } = msg;
 
-    // ----- MESSAGE "join" : un joueur veut rejoindre la partie -----
+    // =====================================================================
+    // MESSAGE "join" : un nouveau joueur veut rejoindre
+    // =====================================================================
+    // data : { pseudo }
+    // Reponse : { playerId, pseudo, cooldown }
+
     if (type === "join") {
-      // Creer le joueur avec une position aleatoire
-      players[id] = {
-        id,
-        pseudo: data.pseudo || "Anonyme",
-        team: data.team || "rouge",
-        x: Math.floor(Math.random() * (ARENA.width - 100)) + 50,
-        y: Math.floor(Math.random() * (ARENA.height - 100)) + 50,
+      const pseudo = (data.pseudo || "Anonyme").trim().substring(0, 16);
+      const playerId = generatePlayerId();
+
+      players[playerId] = {
+        id: playerId,
+        pseudo,
+        teamId: null,          // Pas d'equipe au depart
+        lastPlacement: 0,      // Timestamp du dernier pixel pose
+        totalPixels: 0,        // Nombre total de pixels poses (historique)
+        connectedAt: Date.now(),
       };
 
-      console.log(`${players[id].pseudo} (${players[id].team}) a rejoint la partie`);
+      // Associer l'ID au WebSocket pour retrouver le joueur
+      ws._playerId = playerId;
 
-      // Confirmer au joueur qu'il a bien rejoint (pour changer d'ecran sur son tel)
-      send(ws, "joined", players[id]);
+      console.log(`${pseudo} a rejoint (ID: ${playerId})`);
 
-      // Si c'est le premier joueur et qu'on attend, lancer la partie
-      if (gamePhase === "waiting" && Object.keys(players).length >= 1) {
-        startGame();
+      send(ws, "joined", {
+        playerId,
+        pseudo,
+        cooldown: getCurrentCooldown(),
+        palette: COLOR_PALETTE,
+        canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+      });
+
+      // Informer tout le monde du nouveau nombre de joueurs
+      broadcast("playerCount", Object.keys(players).length);
+    }
+
+    // =====================================================================
+    // MESSAGE "reconnect" : un joueur revient avec son ID
+    // =====================================================================
+    // data : { playerId }
+
+    if (type === "reconnect") {
+      const playerId = (data.playerId || "").trim().toUpperCase();
+
+      if (players[playerId]) {
+        ws._playerId = playerId;
+        console.log(`${players[playerId].pseudo} s'est reconnecte (ID: ${playerId})`);
+
+        send(ws, "joined", {
+          playerId,
+          pseudo: players[playerId].pseudo,
+          teamId: players[playerId].teamId,
+          cooldown: getCurrentCooldown(),
+          palette: COLOR_PALETTE,
+          canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+        });
       } else {
-        // Sinon, juste informer tout le monde du nouvel etat
-        broadcastState();
+        send(ws, "error", { message: "ID inconnu. Veuillez creer un nouveau compte." });
       }
     }
 
-    // ----- MESSAGE "move" : un joueur veut se deplacer -----
-    // On ne traite les mouvements que pendant la phase de jeu
-    if (type === "move" && gamePhase === "playing") {
-      const player = players[id];
-      if (!player) return; // Joueur inconnu
+    // =====================================================================
+    // MESSAGE "placePixel" : un joueur veut poser un pixel
+    // =====================================================================
+    // data : { x, y, color }
 
-      // Deplacer le joueur dans la direction demandee
-      // Math.max/Math.min empeche de sortir de l'arene
-      switch (data) {
-        case "up":
-          player.y = Math.max(0, player.y - SPEED);
-          break;
-        case "down":
-          player.y = Math.min(ARENA.height, player.y + SPEED);
-          break;
-        case "left":
-          player.x = Math.max(0, player.x - SPEED);
-          break;
-        case "right":
-          player.x = Math.min(ARENA.width, player.x + SPEED);
-          break;
+    if (type === "placePixel") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) {
+        send(ws, "error", { message: "Vous devez d'abord rejoindre la partie." });
+        return;
       }
 
-      // Verifier si le joueur ramasse un fruit apres son deplacement
-      checkPickup(player);
+      const player = players[playerId];
+      const { x, y, color } = data;
 
-      // Envoyer le nouvel etat a tout le monde
-      broadcastState();
+      // --- Validation ---
+      // Verifier que les coordonnees sont dans le canvas
+      if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) {
+        send(ws, "error", { message: "Coordonnees hors du canvas." });
+        return;
+      }
+
+      // Verifier que la couleur est dans la palette
+      if (!COLOR_PALETTE.includes(color)) {
+        send(ws, "error", { message: "Couleur invalide." });
+        return;
+      }
+
+      // Verifier le cooldown
+      const cooldown = getCurrentCooldown();
+      const timeSinceLast = Date.now() - player.lastPlacement;
+      if (timeSinceLast < cooldown) {
+        const remaining = Math.ceil((cooldown - timeSinceLast) / 1000);
+        send(ws, "cooldownError", {
+          message: `Attendez encore ${remaining}s`,
+          remaining: cooldown - timeSinceLast,
+        });
+        return;
+      }
+
+      // --- Placement du pixel ---
+      canvas[y][x] = color;
+      player.lastPlacement = Date.now();
+      player.totalPixels++;
+
+      // Ajouter a l'historique
+      pixelHistory.push({
+        playerId,
+        x,
+        y,
+        color,
+        timestamp: Date.now(),
+      });
+
+      console.log(`${player.pseudo} a pose un pixel en (${x},${y}) couleur ${color}`);
+
+      // Confirmer au joueur
+      send(ws, "pixelPlaced", {
+        x,
+        y,
+        color,
+        cooldown,
+        nextPlacement: Date.now() + cooldown,
+      });
+
+      // Informer tous les clients du nouveau pixel
+      broadcastPixelUpdate(x, y, color, playerId);
+
+      // Mettre a jour le leaderboard (pas a chaque pixel pour la perf)
+      // On le fait toutes les 5 secondes via le tick, mais aussi ici pour l'instantaneite
+      broadcastLeaderboard();
+    }
+
+    // =====================================================================
+    // MESSAGE "createTeam" : un joueur cree une equipe
+    // =====================================================================
+    // data : { name, color }
+
+    if (type === "createTeam") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) {
+        send(ws, "error", { message: "Vous devez d'abord rejoindre la partie." });
+        return;
+      }
+
+      const player = players[playerId];
+      const name = (data.name || "").trim().substring(0, 24);
+      const color = data.color || "#3690EA";
+
+      if (!name) {
+        send(ws, "error", { message: "Le nom de l'equipe est requis." });
+        return;
+      }
+
+      // Verifier que le nom n'est pas deja pris
+      const nameExists = Object.values(teams).some(
+        (t) => t.name.toLowerCase() === name.toLowerCase()
+      );
+      if (nameExists) {
+        send(ws, "error", { message: "Ce nom d'equipe est deja pris." });
+        return;
+      }
+
+      // Quitter l'ancienne equipe si le joueur en avait une
+      if (player.teamId && teams[player.teamId]) {
+        const oldTeam = teams[player.teamId];
+        oldTeam.members = oldTeam.members.filter((id) => id !== playerId);
+        // Supprimer l'equipe si elle est vide
+        if (oldTeam.members.length === 0) {
+          delete teams[player.teamId];
+        }
+      }
+
+      // Creer l'equipe
+      const teamId = String(nextTeamId++);
+      teams[teamId] = {
+        id: teamId,
+        name,
+        color,
+        creatorId: playerId,
+        members: [playerId],
+        overlay: null, // Pas d'overlay par defaut
+        createdAt: Date.now(),
+      };
+
+      player.teamId = teamId;
+
+      console.log(`${player.pseudo} a cree l'equipe "${name}" (ID: ${teamId})`);
+
+      send(ws, "teamJoined", {
+        teamId,
+        team: getTeamsPublicData()[teamId],
+      });
+
+      // Informer tout le monde des equipes mises a jour
+      broadcast("teamsUpdate", getTeamsPublicData());
+    }
+
+    // =====================================================================
+    // MESSAGE "joinTeam" : un joueur rejoint une equipe existante
+    // =====================================================================
+    // data : { teamId }
+
+    if (type === "joinTeam") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) {
+        send(ws, "error", { message: "Vous devez d'abord rejoindre la partie." });
+        return;
+      }
+
+      const player = players[playerId];
+      const teamId = String(data.teamId);
+
+      if (!teams[teamId]) {
+        send(ws, "error", { message: "Equipe introuvable." });
+        return;
+      }
+
+      // Quitter l'ancienne equipe
+      if (player.teamId && teams[player.teamId]) {
+        const oldTeam = teams[player.teamId];
+        oldTeam.members = oldTeam.members.filter((id) => id !== playerId);
+        if (oldTeam.members.length === 0) {
+          delete teams[player.teamId];
+        }
+      }
+
+      // Rejoindre la nouvelle equipe
+      teams[teamId].members.push(playerId);
+      player.teamId = teamId;
+
+      console.log(`${player.pseudo} a rejoint l'equipe "${teams[teamId].name}"`);
+
+      send(ws, "teamJoined", {
+        teamId,
+        team: getTeamsPublicData()[teamId],
+      });
+
+      broadcast("teamsUpdate", getTeamsPublicData());
+    }
+
+    // =====================================================================
+    // MESSAGE "leaveTeam" : un joueur quitte son equipe
+    // =====================================================================
+
+    if (type === "leaveTeam") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) return;
+
+      const player = players[playerId];
+      if (!player.teamId || !teams[player.teamId]) return;
+
+      const team = teams[player.teamId];
+      team.members = team.members.filter((id) => id !== playerId);
+
+      console.log(`${player.pseudo} a quitte l'equipe "${team.name}"`);
+
+      // Si l'equipe est vide, la supprimer
+      if (team.members.length === 0) {
+        console.log(`Equipe "${team.name}" supprimee (vide)`);
+        delete teams[player.teamId];
+      }
+
+      player.teamId = null;
+
+      send(ws, "teamLeft", {});
+      broadcast("teamsUpdate", getTeamsPublicData());
+    }
+
+    // =====================================================================
+    // MESSAGE "setOverlay" : le createur definit un overlay pour son equipe
+    // =====================================================================
+    // data : { overlay } — tableau 2D [y][x] de couleurs hex ou null
+    // Seul le createur de l'equipe peut faire ca
+
+    if (type === "setOverlay") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) return;
+
+      const player = players[playerId];
+      if (!player.teamId || !teams[player.teamId]) return;
+
+      const team = teams[player.teamId];
+
+      // Verifier que c'est le createur
+      if (team.creatorId !== playerId) {
+        send(ws, "error", { message: "Seul le createur de l'equipe peut definir l'overlay." });
+        return;
+      }
+
+      // Valider l'overlay (doit etre un tableau 2D de la bonne taille)
+      const overlay = data.overlay;
+      if (overlay && Array.isArray(overlay) && overlay.length === CANVAS_HEIGHT) {
+        team.overlay = overlay;
+        console.log(`Overlay mis a jour pour l'equipe "${team.name}"`);
+      } else if (overlay === null) {
+        team.overlay = null;
+        console.log(`Overlay supprime pour l'equipe "${team.name}"`);
+      } else {
+        send(ws, "error", { message: "Format d'overlay invalide." });
+        return;
+      }
+
+      broadcast("teamsUpdate", getTeamsPublicData());
+    }
+
+    // =====================================================================
+    // MESSAGE "getPixelInfo" : demander des infos sur un pixel
+    // =====================================================================
+    // data : { x, y }
+
+    if (type === "getPixelInfo") {
+      const { x, y } = data;
+      if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) return;
+
+      // Trouver le dernier joueur a avoir place ce pixel
+      let lastPlacer = null;
+      for (let i = pixelHistory.length - 1; i >= 0; i--) {
+        if (pixelHistory[i].x === x && pixelHistory[i].y === y) {
+          lastPlacer = pixelHistory[i];
+          break;
+        }
+      }
+
+      send(ws, "pixelInfo", {
+        x,
+        y,
+        color: canvas[y][x],
+        placedBy: lastPlacer
+          ? {
+              playerId: lastPlacer.playerId,
+              pseudo: players[lastPlacer.playerId]
+                ? players[lastPlacer.playerId].pseudo
+                : "???",
+              timestamp: lastPlacer.timestamp,
+            }
+          : null,
+      });
     }
   });
 
   // --- Deconnexion d'un client ---
+  // On ne supprime PAS le joueur : il peut se reconnecter avec son ID
   ws.on("close", () => {
-    if (players[id]) {
-      console.log(`${players[id].pseudo} a quitte la partie`);
-      delete players[id]; // Retirer le joueur de l'etat du jeu
-      broadcastState(); // Informer tout le monde
+    const playerId = ws._playerId;
+    if (playerId && players[playerId]) {
+      console.log(`${players[playerId].pseudo} s'est deconnecte (ID conserve: ${playerId})`);
     }
+    // Note : on garde le joueur dans "players" pour permettre la reconnexion
+    // Un systeme de nettoyage pourrait supprimer les joueurs inactifs apres X heures
   });
 });
+
+// =============================================================================
+// TICK PERIODIQUE
+// =============================================================================
+// Envoie le leaderboard mis a jour toutes les 10 secondes
+
+setInterval(() => {
+  broadcastLeaderboard();
+}, 10000);
 
 // =============================================================================
 // DEMARRAGE DU SERVEUR
 // =============================================================================
 
 http.listen(PORT, () => {
-  // Trouver l'adresse IP locale de la machine sur le reseau WiFi
-  // C'est cette IP que les joueurs utiliseront pour se connecter
   const nets = os.networkInterfaces();
   let localIP = "localhost";
   for (const name of Object.keys(nets)) {
     for (const net of nets[name]) {
-      // On cherche une adresse IPv4 qui n'est pas "localhost" (127.0.0.1)
       if (net.family === "IPv4" && !net.internal) {
         localIP = net.address;
         break;
@@ -367,11 +660,15 @@ http.listen(PORT, () => {
 
   console.log("");
   console.log("===========================================");
-  console.log("  SERVEUR DEMARRE !");
+  console.log("  🎨 PIXEL WAR — SERVEUR DEMARRE !");
   console.log("===========================================");
   console.log("");
   console.log(`  Ecran de jeu : http://${localIP}:${PORT}/game`);
   console.log(`  Controller   : http://${localIP}:${PORT}/controller`);
+  console.log("");
+  console.log(`  Canvas : ${CANVAS_WIDTH}x${CANVAS_HEIGHT} pixels`);
+  console.log(`  Cooldown : ${DEFAULT_COOLDOWN / 1000}s (dynamique)`);
+  console.log(`  Palette : ${COLOR_PALETTE.length} couleurs`);
   console.log("");
   console.log("  (Partagez le lien controller aux joueurs)");
   console.log("===========================================");

@@ -3,82 +3,49 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Ecran de jeu</title>
+    <title>Pixel War — Ecran</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
 
-    <!--
-      HUD (Head-Up Display) : barre d'info en haut de l'ecran
-      Affiche les scores des deux equipes et le timer.
-      Position fixee en haut de la page (CSS: position: fixed).
-    -->
-    <div id="hud">
-      <div class="hud-team rouge">
-        <span class="team-dot rouge"></span>
-        Rouge : <span id="score-rouge">0</span>
+    <!-- ================================================================
+         LEADERBOARD (en haut a gauche)
+         Alterne entre classement individuel et par equipe
+         ================================================================ -->
+    <div id="leaderboard">
+      <div class="leaderboard-header">
+        <h2 id="leaderboard-title">🏆 Top Joueurs</h2>
+        <span id="player-count" class="player-count">0 joueurs</span>
       </div>
-      <div id="timer">5:00</div>
-      <div class="hud-team bleu">
-        <span class="team-dot bleu"></span>
-        Bleu : <span id="score-bleu">0</span>
-      </div>
+      <div id="leaderboard-list"></div>
     </div>
 
-    <!--
-      ARENA : la zone de jeu
-      Conteneur de taille fixe (1200x800) qui est automatiquement redimensionne
-      par le JS (scale) pour tenir dans l'ecran.
-      Les joueurs et les fruits sont positionnes en "position: absolute" a l'interieur.
-    -->
-    <div id="arena-wrapper">
-      <div id="arena">
-        <!-- Message affiche quand aucun joueur n'est connecte -->
-        <div id="waiting">En attente de joueurs...</div>
-      </div>
+    <!-- ================================================================
+         CANVAS PRINCIPAL (centre)
+         ================================================================ -->
+    <div id="canvas-wrapper">
+      <canvas id="pixel-canvas"></canvas>
     </div>
 
-    <!--
-      ECRAN DE FIN DE PARTIE (overlay)
-      Cache par defaut (class "hidden").
-      S'affiche par-dessus tout quand la partie se termine.
-      Montre les scores finaux, le gagnant, et le compte a rebours avant relance.
-    -->
-    <div id="screen-gameover" class="overlay hidden">
-      <div class="gameover-card">
-        <h1 id="gameover-title">Fin de la partie !</h1>
-
-        <!-- Scores finaux : Rouge VS Bleu -->
-        <div class="gameover-scores">
-          <div class="gameover-team rouge">
-            <span class="team-dot rouge"></span>
-            Rouge
-            <span class="gameover-points" id="final-rouge">0</span>
-          </div>
-          <div class="gameover-vs">VS</div>
-          <div class="gameover-team bleu">
-            <span class="team-dot bleu"></span>
-            Bleu
-            <span class="gameover-points" id="final-bleu">0</span>
-          </div>
-        </div>
-
-        <!-- Compte a rebours avant la prochaine partie -->
-        <div id="gameover-restart">Prochaine partie dans <span id="restart-countdown">30</span>s</div>
-      </div>
-    </div>
-
-    <!--
-      QR CODE : affiche en bas a droite de l'ecran
-      Permet aux joueurs de scanner pour rejoindre la partie directement.
-      Genere dynamiquement par le JS avec la librairie qrcode-generator (via CDN).
-    -->
+    <!-- ================================================================
+         QR CODE (en bas a droite)
+         ================================================================ -->
     <div id="qr-box">
       <div id="qr-code"></div>
       <span id="qr-label">Scannez pour jouer</span>
     </div>
 
-    <!-- Librairie qrcode-generator : genere des QR codes cote client, zero dependance -->
+    <!-- ================================================================
+         EN ATTENTE (affiche quand personne n'est connecte)
+         ================================================================ -->
+    <div id="waiting">
+      <div class="waiting-content">
+        <h1>🎨 Pixel War</h1>
+        <p>En attente de joueurs...</p>
+        <p class="muted">Scannez le QR code pour rejoindre</p>
+      </div>
+    </div>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
     <script src="script.js"></script>
   </body>

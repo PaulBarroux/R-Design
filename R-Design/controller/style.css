@@ -2,9 +2,6 @@
    CONTROLLER — style.css (telephone du joueur)
    ============================================================================= */
 
-/* --- Reset CSS --- */
-/* Supprime les marges/paddings par defaut et utilise box-sizing: border-box
-   pour que les tailles incluent padding + bordures */
 * {
   margin: 0;
   padding: 0;
@@ -15,52 +12,55 @@ body {
   font-family: "Segoe UI", system-ui, sans-serif;
   background: #1a1a2e;
   color: #eee;
-  height: 100dvh; /* dvh = hauteur dynamique du viewport (gere la barre d'URL sur mobile) */
-  overflow: hidden; /* Pas de scroll */
-  -webkit-user-select: none; /* Empeche la selection de texte (pour le tactile) */
+  min-height: 100dvh;
+  overflow-x: hidden;
+  -webkit-user-select: none;
   user-select: none;
 }
 
-/* --- Ecrans (join et controller) ---
-   Les deux ecrans occupent tout l'espace et centrent leur contenu */
 .screen {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 100dvh;
-  padding: 2rem;
-  gap: 1.5rem;
+  min-height: 100dvh;
+  padding: 1.5rem;
+  gap: 1rem;
 }
 
-/* Classe utilitaire pour cacher un element */
+#screen-game {
+  justify-content: flex-start;
+  padding-top: 0.75rem;
+  gap: 0.5rem;
+}
+
 .hidden {
   display: none !important;
 }
 
-/* --- Ecran de connexion (Join) --- */
+/* --- Ecran Join --- */
 h1 {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 700;
 }
 
 .form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.75rem;
   width: 100%;
   max-width: 320px;
 }
 
 label {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
 input {
-  padding: 0.8rem 1rem;
+  padding: 0.75rem 1rem;
   border-radius: 12px;
   border: 2px solid #333;
   background: #16213e;
@@ -71,174 +71,291 @@ input {
 }
 
 input:focus {
-  border-color: #e94560;
+  border-color: #3690EA;
 }
 
-/* Boutons de selection d'equipe (cote a cote) */
-.team-select {
-  display: flex;
-  gap: 0.75rem;
-}
-
-.team-btn {
-  flex: 1;
-  padding: 0.8rem;
-  border-radius: 12px;
-  border: 2px solid #333;
-  background: #16213e;
-  color: #eee;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-/* Style du bouton quand l'equipe rouge est selectionnee */
-.team-btn[data-team="rouge"].selected {
-  border-color: #e94560;
-  background: #e9456022; /* Rouge semi-transparent */
-  color: #e94560;
-}
-
-/* Style du bouton quand l'equipe bleue est selectionnee */
-.team-btn[data-team="bleu"].selected {
-  border-color: #4ea8de;
-  background: #4ea8de22; /* Bleu semi-transparent */
-  color: #4ea8de;
-}
-
-/* Bouton principal "Rejoindre" */
 .btn-primary {
-  padding: 1rem;
+  padding: 0.9rem;
   border-radius: 12px;
   border: none;
-  background: #e94560;
+  background: #3690EA;
   color: white;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
-  margin-top: 0.5rem;
   transition: transform 0.1s, opacity 0.2s;
 }
 
 .btn-primary:active {
-  transform: scale(0.97); /* Petit effet "appui" au clic */
+  transform: scale(0.97);
 }
 
-/* --- Ecran Controller (manette) --- */
+.btn-secondary {
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 2px solid #333;
+  background: transparent;
+  color: #aaa;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
 
-/* HUD du controller : pseudo + equipe + scores + timer */
-.controller-hud {
+.btn-danger {
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 2px solid #e94560;
+  background: #e9456022;
+  color: #e94560;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  max-width: 320px;
+}
+
+.separator {
+  text-align: center;
+  opacity: 0.4;
+  font-size: 0.85rem;
+  margin: 0.25rem 0;
+}
+
+/* --- Barre joueur --- */
+.player-bar {
   display: flex;
-  flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-}
-
-.player-info {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  font-size: 1.2rem;
+  font-size: 1rem;
   font-weight: 600;
+  width: 100%;
+  max-width: 400px;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
-/* Ligne de score et timer */
-.controller-score {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-size: 0.95rem;
-  font-weight: 700;
+.player-id {
+  font-family: monospace;
+  font-size: 0.75rem;
+  background: #ffffff15;
+  padding: 0.15rem 0.5rem;
+  border-radius: 6px;
+  opacity: 0.7;
 }
 
-#ctrl-timer {
-  font-variant-numeric: tabular-nums; /* Chiffres a largeur fixe (evite que le timer "saute") */
-  opacity: 0.6;
-}
-
-/* Mini-pastilles de score (rouge et bleu) */
-.mini-score {
-  padding: 0.15rem 0.6rem;
-  border-radius: 8px;
-  font-size: 0.85rem;
-}
-
-.mini-score.rouge {
-  background: #e9456033;
-  color: #e94560;
-}
-
-.mini-score.bleu {
-  background: #4ea8de33;
-  color: #4ea8de;
-}
-
-/* Badge d'equipe affiche a cote du pseudo */
 .badge {
-  padding: 0.25rem 0.75rem;
+  padding: 0.2rem 0.6rem;
   border-radius: 20px;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
   text-transform: uppercase;
   font-weight: 700;
+  background: #ffffff15;
+  color: #aaa;
 }
 
-.badge.rouge {
-  background: #e9456033;
-  color: #e94560;
-}
-
-.badge.bleu {
-  background: #4ea8de33;
-  color: #4ea8de;
-}
-
-/* --- D-Pad (croix directionnelle) ---
-   Disposition en croix :
-       [haut]
-   [gauche][vide][droite]
-       [bas]
-*/
-.dpad {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 2rem;
-}
-
-.dpad-middle {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-/* Style d'un bouton fleche */
-.arrow {
-  width: 80px;
-  height: 80px;
-  border-radius: 16px;
+/* --- Canvas --- */
+#canvas-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 400px;
+  aspect-ratio: 1;
   border: 2px solid #333;
+  border-radius: 8px;
+  overflow: hidden;
+  touch-action: none; /* Empeche le scroll/zoom natif sur le canvas */
+}
+
+#pixel-canvas {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated; /* Pixels nets, pas de flou */
+  cursor: crosshair;
+}
+
+#pixel-info-tooltip {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #000000cc;
+  padding: 0.3rem 0.6rem;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+#coords-display {
+  font-family: monospace;
+  font-size: 0.75rem;
+  opacity: 0.5;
+}
+
+/* --- Palette --- */
+#palette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  justify-content: center;
+  max-width: 400px;
+  width: 100%;
+}
+
+.palette-color {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  transition: transform 0.1s, border-color 0.15s;
+}
+
+.palette-color:active {
+  transform: scale(0.9);
+}
+
+.palette-color.selected {
+  border-color: white;
+  transform: scale(1.15);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+}
+
+/* --- Cooldown --- */
+#cooldown-bar {
+  width: 100%;
+  max-width: 400px;
+  height: 32px;
   background: #16213e;
-  color: #eee;
-  font-size: 1.5rem;
+  border-radius: 8px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+#cooldown-fill {
+  height: 100%;
+  width: 0%;
+  background: #3690EA;
+  border-radius: 8px;
+  transition: width 0.5s linear;
+}
+
+#cooldown-text {
+  position: absolute;
+  inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
+  font-size: 0.8rem;
+  font-weight: 700;
+  pointer-events: none;
+}
+
+#cooldown-bar.ready #cooldown-fill {
+  width: 100%;
+  background: #00A368;
+}
+
+/* --- Tabs --- */
+.tabs {
+  display: flex;
+  gap: 0;
+  width: 100%;
+  max-width: 400px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #333;
+}
+
+.tab {
+  flex: 1;
+  padding: 0.6rem;
+  background: #16213e;
+  border: none;
+  color: #888;
+  font-size: 0.85rem;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.1s, transform 0.1s;
-  -webkit-tap-highlight-color: transparent; /* Supprime le flash bleu au tap sur mobile */
+  transition: background 0.2s, color 0.2s;
 }
 
-/* Style quand on appuie sur une fleche */
-.arrow:active,
-.arrow.pressed {
-  background: #e94560;
-  transform: scale(0.93);
+.tab.active {
+  background: #3690EA22;
+  color: #3690EA;
 }
 
-/* Espace vide au centre du D-pad */
-.arrow-center {
-  width: 80px;
-  height: 80px;
+/* --- Team tab --- */
+.tab-content {
+  width: 100%;
+  max-width: 400px;
+}
+
+.team-color-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.team-color-option {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+}
+
+.team-color-option.selected {
+  border-color: white;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.4);
+}
+
+.teams-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.team-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  background: #16213e;
+  border-radius: 10px;
+  border: 1px solid #333;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.team-item:active {
+  border-color: #3690EA;
+}
+
+.team-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.team-dot-big {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+}
+
+.team-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.muted {
+  opacity: 0.4;
+  font-size: 0.85rem;
+  text-align: center;
 }

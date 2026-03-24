@@ -5,93 +5,177 @@
 // Ce fichier gere l'affichage du jeu sur l'ecran partage.
 // Il ne fait qu'AFFICHER : aucune logique de jeu ici, tout vient du serveur.
 //
-// Il fait 3 choses :
+// Il fait 4 choses :
 //   1. Se connecter au serveur via WebSocket
-//   2. Adapter la taille de l'arene a l'ecran (responsive)
-//   3. Afficher les joueurs, fruits, scores, timer, et ecran de fin
+//   2. Afficher le canvas (grille de pixels)
+//   3. Afficher le leaderboard (individuel et equipes, en alternance)
+//   4. Generer le QR code pour rejoindre
 //
 // =============================================================================
 
-// --- Connexion WebSocket ---
-// Meme principe que le controller : on se connecte au serveur qui nous a servi la page
 const ws = new WebSocket(`ws://${location.host}`);
 
 // =============================================================================
 // QR CODE
 // =============================================================================
-// Genere un QR code pointant vers la page controller.
-// Utilise la librairie "qrcode-generator" chargee via CDN dans le HTML.
-// L'URL est construite a partir de location.host (IP:port du serveur actuel).
 
 (function generateQRCode() {
   const controllerURL = `http://${location.host}/controller`;
-  // qrcode(typeNumber, errorCorrectionLevel) — type 0 = auto, "L" = correction minimale
   const qr = qrcode(0, "L");
   qr.addData(controllerURL);
   qr.make();
-  // createImgTag(cellSize, margin) — genere une balise <img> avec le QR code
-  document.getElementById("qr-code").innerHTML = qr.createImgTag(4, 0);
+  document.getElementById("qr-code").innerHTML = qr.createImgTag(3, 0);
 })();
 
 // =============================================================================
-// REFERENCES AUX ELEMENTS HTML
+// REFERENCES DOM
 // =============================================================================
 
-const arena = document.getElementById("arena");
-const arenaWrapper = document.getElementById("arena-wrapper");
-const waiting = document.getElementById("waiting");
-const scoreRouge = document.getElementById("score-rouge");
-const scoreBleu = document.getElementById("score-bleu");
-const timerEl = document.getElementById("timer");
-const screenGameover = document.getElementById("screen-gameover");
-const gameoverTitle = document.getElementById("gameover-title");
-const finalRouge = document.getElementById("final-rouge");
-const finalBleu = document.getElementById("final-bleu");
-const restartCountdown = document.getElementById("restart-countdown");
+const canvasEl = document.getElementById("pixel-canvas");
+const ctx = canvasEl.getContext("2d");
+const canvasWrapper = document.getElementById("canvas-wrapper");
+const leaderboardTitle = document.getElementById("leaderboard-title");
+const leaderboardList = document.getElementById("leaderboard-list");
+const playerCountEl = document.getElementById("player-count");
+const waitingEl = document.getElementById("waiting");
 
 // =============================================================================
-// RESPONSIVE : ADAPTER L'ARENE A L'ECRAN
+// ETAT LOCAL
 // =============================================================================
-// L'arene fait 1200x800 pixels en interne, mais l'ecran peut etre plus petit.
-// On calcule un facteur de scale pour que l'arene tienne dans l'espace disponible.
-// Tout le contenu de l'arene (joueurs, fruits) est automatiquement redimensionne
-// grace au CSS transform: scale().
 
-function fitArena() {
-  const maxW = arenaWrapper.clientWidth - 32; // Largeur dispo (avec marge)
-  const maxH = arenaWrapper.clientHeight - 32; // Hauteur dispo (avec marge)
-  // On prend le plus petit ratio pour que l'arene tienne en largeur ET en hauteur
-  // Le "1" empeche de zoomer au-dela de la taille native
-  const scale = Math.min(maxW / 1200, maxH / 800, 1);
-  arena.style.transform = `scale(${scale})`;
+let canvasSize = { width: 200, height: 200 };
+let canvasData = null;
+let leaderboardData = { individual: [], teams: [] };
+let showTeamLeaderboard = false; // Alterne entre individuel et equipes
+
+// =============================================================================
+// CANVAS — RENDU
+// =============================================================================
+// Le canvas est un element <canvas> HTML avec image-rendering: pixelated.
+// On dessine chaque pixel a l'echelle 1:1 puis le CSS l'agrandit.
+
+function renderCanvas(data) {
+  if (!data) return;
+  canvasData = data;
+
+  canvasEl.width = canvasSize.width;
+  canvasEl.height = canvasSize.height;
+
+  const imageData = ctx.createImageData(canvasSize.width, canvasSize.height);
+
+  for (let y = 0; y < canvasSize.height; y++) {
+    for (let x = 0; x < canvasSize.width; x++) {
+      const idx = (y * canvasSize.width + x) * 4;
+      const color = data[y][x];
+      if (color) {
+        const r = parseInt(color.slice(1, 3), 16);
+        const g = parseInt(color.slice(3, 5), 16);
+        const b = parseInt(color.slice(5, 7), 16);
+        imageData.data[idx] = r;
+        imageData.data[idx + 1] = g;
+        imageData.data[idx + 2] = b;
+        imageData.data[idx + 3] = 255;
+      } else {
+        // Pixel vide : damier sombre subtil
+        const isLight = (x + y) % 2 === 0;
+        imageData.data[idx] = isLight ? 22 : 18;
+        imageData.data[idx + 1] = isLight ? 22 : 18;
+        imageData.data[idx + 2] = isLight ? 36 : 30;
+        imageData.data[idx + 3] = 255;
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
 }
 
-// Appeler au chargement et a chaque redimensionnement de la fenetre
-fitArena();
-window.addEventListener("resize", fitArena);
-
-// =============================================================================
-// GESTION DES ELEMENTS DOM DYNAMIQUES
-// =============================================================================
-// On garde en memoire les elements HTML crees pour chaque joueur et fruit.
-// Cela permet de les mettre a jour ou les supprimer quand l'etat change.
-// Cle = ID du joueur/fruit, Valeur = element HTML (<div>)
-
-const playerElements = {};
-const fruitElements = {};
-
-// =============================================================================
-// FORMATER LE TEMPS
-// =============================================================================
-
-let timeLeft = 0;
-
-function formatTime(ms) {
-  const totalSec = Math.max(0, Math.ceil(ms / 1000));
-  const min = Math.floor(totalSec / 60);
-  const sec = totalSec % 60;
-  return `${min}:${String(sec).padStart(2, "0")}`;
+// Mettre a jour un seul pixel (plus rapide que tout redessiner)
+function updatePixel(x, y, color) {
+  if (canvasData) {
+    canvasData[y][x] = color;
+  }
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  const imageData = ctx.createImageData(1, 1);
+  imageData.data[0] = r;
+  imageData.data[1] = g;
+  imageData.data[2] = b;
+  imageData.data[3] = 255;
+  ctx.putImageData(imageData, x, y);
 }
+
+// =============================================================================
+// CANVAS — TAILLE RESPONSIVE
+// =============================================================================
+// On veut que chaque pixel soit carre et que le canvas remplisse au max l'ecran.
+// Le canvas interne fait 200x200 pixels, et le CSS le grossit avec pixelated.
+
+function fitCanvas() {
+  const maxW = window.innerWidth - 320; // Laisser de la place pour le leaderboard + QR
+  const maxH = window.innerHeight - 40;
+
+  // Calculer la taille d'un pixel a l'ecran
+  const pixelSize = Math.max(1, Math.floor(Math.min(maxW / canvasSize.width, maxH / canvasSize.height)));
+
+  canvasEl.style.width = pixelSize * canvasSize.width + "px";
+  canvasEl.style.height = pixelSize * canvasSize.height + "px";
+}
+
+fitCanvas();
+window.addEventListener("resize", fitCanvas);
+
+// =============================================================================
+// LEADERBOARD
+// =============================================================================
+
+function renderLeaderboard(data) {
+  if (!data) return;
+  leaderboardData = data;
+  displayCurrentLeaderboard();
+}
+
+function displayCurrentLeaderboard() {
+  const list = showTeamLeaderboard ? leaderboardData.teams : leaderboardData.individual;
+  leaderboardTitle.textContent = showTeamLeaderboard ? "🏆 Top Equipes" : "🏆 Top Joueurs";
+
+  if (list.length === 0) {
+    leaderboardList.innerHTML = '<div class="lb-entry"><span style="opacity:0.4; font-size:0.75rem;">Aucun pixel place</span></div>';
+    return;
+  }
+
+  leaderboardList.innerHTML = list
+    .map((entry, i) => {
+      if (showTeamLeaderboard) {
+        return `
+          <div class="lb-entry">
+            <span class="lb-rank">${i + 1}</span>
+            <div class="lb-dot" style="background: ${entry.color}"></div>
+            <span class="lb-name">${entry.name}</span>
+            <span class="lb-count">${entry.count} px</span>
+          </div>
+        `;
+      } else {
+        return `
+          <div class="lb-entry">
+            <span class="lb-rank">${i + 1}</span>
+            <span class="lb-name">${entry.pseudo}</span>
+            <span class="lb-count">${entry.count} px</span>
+          </div>
+        `;
+      }
+    })
+    .join("");
+}
+
+// Alterner entre leaderboard individuel et equipes toutes les 8 secondes
+setInterval(() => {
+  // Ne changer que s'il y a des equipes
+  if (leaderboardData.teams.length > 0) {
+    showTeamLeaderboard = !showTeamLeaderboard;
+    displayCurrentLeaderboard();
+  }
+}, 8000);
 
 // =============================================================================
 // RECEPTION DES MESSAGES DU SERVEUR
@@ -100,145 +184,52 @@ function formatTime(ms) {
 ws.addEventListener("message", (event) => {
   const { type, data } = JSON.parse(event.data);
 
-  // =========================================================================
-  // MESSAGE "state" : mise a jour complete de l'etat du jeu
-  // =========================================================================
-  // Recu toutes les secondes + a chaque action d'un joueur.
-  // Contient : joueurs, fruits, scores, phase, temps restant.
+  // --- Etat initial ---
+  if (type === "init") {
+    canvasSize = data.canvasSize;
+    fitCanvas();
+    renderCanvas(data.canvas);
+    renderLeaderboard(data.leaderboard);
+    playerCountEl.textContent = `${data.playerCount} joueur${data.playerCount > 1 ? "s" : ""}`;
 
+    if (data.playerCount > 0) {
+      waitingEl.classList.add("hidden");
+    }
+  }
+
+  // --- Un pixel a ete place ---
+  if (type === "pixelUpdate") {
+    updatePixel(data.x, data.y, data.color);
+
+    // Cacher l'ecran d'attente des le premier pixel
+    waitingEl.classList.add("hidden");
+  }
+
+  // --- Mise a jour du leaderboard ---
+  if (type === "leaderboard") {
+    renderLeaderboard(data);
+  }
+
+  // --- Nombre de joueurs ---
+  if (type === "playerCount") {
+    playerCountEl.textContent = `${data} joueur${data > 1 ? "s" : ""}`;
+    if (data > 0) {
+      waitingEl.classList.add("hidden");
+    }
+  }
+
+  // --- Etat complet (rare, sur reconnexion) ---
   if (type === "state") {
-    const { players, fruits, scores, phase } = data;
-    timeLeft = data.timeLeft || 0;
-
-    // --- Cacher l'ecran game over si la partie reprend ---
-    if (phase === "playing") {
-      screenGameover.classList.add("hidden");
-    }
-
-    // --- Message "En attente de joueurs..." ---
-    const ids = Object.keys(players);
-    waiting.style.display = ids.length === 0 && phase === "waiting" ? "flex" : "none";
-
-    // --- Timer ---
-    timerEl.textContent = formatTime(timeLeft);
-    // Le timer devient rouge et clignote quand il reste moins de 30 secondes
-    timerEl.classList.toggle("urgent", timeLeft < 30000 && timeLeft > 0);
-
-    // --- Scores dans le HUD ---
-    scoreRouge.textContent = scores.rouge;
-    scoreBleu.textContent = scores.bleu;
-
-    // -----------------------------------------------------------------
-    // MISE A JOUR DES JOUEURS
-    // -----------------------------------------------------------------
-    // Pour chaque joueur dans l'etat du serveur :
-    //   - S'il n'existe pas encore dans le DOM, on cree son element HTML
-    //   - On met a jour sa position (left/top en CSS)
-
-    ids.forEach((id) => {
-      const p = players[id];
-
-      // Creer l'element du joueur s'il n'existe pas encore
-      if (!playerElements[id]) {
-        const el = document.createElement("div");
-        el.className = "player";
-        // Le joueur est un cercle colore avec son pseudo en dessous
-        el.innerHTML = `
-          <div class="player-dot ${p.team}"></div>
-          <span class="player-name">${p.pseudo}</span>
-        `;
-        arena.appendChild(el);
-        playerElements[id] = el;
-      }
-
-      // Mettre a jour la position du joueur
-      // Le -15 centre le cercle (30px de large / 2) sur la position x,y
-      const el = playerElements[id];
-      el.style.left = p.x - 15 + "px";
-      el.style.top = p.y - 15 + "px";
-    });
-
-    // Supprimer les joueurs qui se sont deconnectes
-    // (presents dans le DOM mais absents de l'etat du serveur)
-    Object.keys(playerElements).forEach((id) => {
-      if (!players[id]) {
-        playerElements[id].remove(); // Retirer du DOM
-        delete playerElements[id]; // Retirer de notre dictionnaire
-      }
-    });
-
-    // -----------------------------------------------------------------
-    // MISE A JOUR DES FRUITS
-    // -----------------------------------------------------------------
-    // Meme principe que les joueurs : creer/positionner/supprimer
-
-    const fruitIds = Object.keys(fruits);
-
-    fruitIds.forEach((id) => {
-      const f = fruits[id];
-
-      // Creer l'element du fruit s'il n'existe pas encore
-      if (!fruitElements[id]) {
-        const el = document.createElement("div");
-        el.className = "fruit";
-        el.textContent = f.emoji; // L'emoji du fruit (🍎, 🍊, etc.)
-        arena.appendChild(el);
-        fruitElements[id] = el;
-      }
-
-      // Positionner le fruit
-      const el = fruitElements[id];
-      el.style.left = f.x - 14 + "px";
-      el.style.top = f.y - 14 + "px";
-    });
-
-    // Supprimer les fruits qui ont ete ramasces
-    Object.keys(fruitElements).forEach((id) => {
-      if (!fruits[id]) {
-        fruitElements[id].remove();
-        delete fruitElements[id];
-      }
-    });
+    canvasSize = data.canvasSize;
+    fitCanvas();
+    renderCanvas(data.canvas);
+    renderLeaderboard(data.leaderboard);
+    playerCountEl.textContent = `${data.playerCount} joueur${data.playerCount > 1 ? "s" : ""}`;
   }
+});
 
-  // =========================================================================
-  // MESSAGE "gameOver" : la partie est terminee
-  // =========================================================================
-  // Affiche l'ecran de fin avec les scores et un compte a rebours.
-
-  if (type === "gameOver") {
-    const { scores, winner, restartIn } = data;
-
-    // Afficher l'overlay de fin
-    screenGameover.classList.remove("hidden");
-
-    // Afficher les scores finaux
-    finalRouge.textContent = scores.rouge;
-    finalBleu.textContent = scores.bleu;
-
-    // Afficher le titre selon le gagnant
-    if (winner === "egalite") {
-      gameoverTitle.textContent = "Egalite !";
-    } else {
-      gameoverTitle.textContent =
-        winner === "rouge" ? "Les Rouges gagnent !" : "Les Bleus gagnent !";
-    }
-
-    // Mettre en avant l'equipe gagnante (scale un peu plus grand)
-    document.querySelectorAll(".gameover-team").forEach((el) => {
-      el.classList.remove("winner");
-      if (el.classList.contains(winner)) {
-        el.classList.add("winner");
-      }
-    });
-
-    // --- Compte a rebours avant la prochaine partie ---
-    let remaining = Math.ceil(restartIn / 1000); // Convertir ms en secondes
-    restartCountdown.textContent = remaining;
-    const countdownInterval = setInterval(() => {
-      remaining--;
-      restartCountdown.textContent = Math.max(0, remaining);
-      if (remaining <= 0) clearInterval(countdownInterval); // Arreter quand c'est fini
-    }, 1000);
-  }
+// Reconnexion WebSocket
+ws.addEventListener("close", () => {
+  console.log("Connexion perdue. Tentative de reconnexion...");
+  setTimeout(() => location.reload(), 3000);
 });
