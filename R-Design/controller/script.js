@@ -32,6 +32,8 @@ const btnSmsId = document.getElementById("btn-sms-id");
 const displayPseudo = document.getElementById("display-pseudo");
 const displayId = document.getElementById("display-id");
 const displayTeam = document.getElementById("display-team");
+const displayTeamDot = document.getElementById("display-team-dot");
+const displayTeamText = document.getElementById("display-team-text");
 const gameError = document.getElementById("game-error");
 
 // Canvas
@@ -208,32 +210,42 @@ btnContinue.addEventListener("click", () => {
   screenGame.classList.remove("hidden");
 });
 
-// Copier l'ID dans le presse-papier
-function copyIdToClipboard(id) {
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(id).then(() => {
-      btnCopyId.textContent = "Copie !";
-      setTimeout(() => { btnCopyId.textContent = "Copier l'ID"; }, 1500);
-    });
+// Copie universelle (fonctionne sans HTTPS)
+function copyText(text, onSuccess) {
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).then(onSuccess);
+  } else {
+    const el = document.createElement("textarea");
+    el.value = text;
+    el.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+    document.body.appendChild(el);
+    el.focus();
+    el.select();
+    document.execCommand("copy");
+    document.body.removeChild(el);
+    onSuccess();
   }
 }
 
 btnCopyId.addEventListener("click", () => {
   const id = revealId.textContent.trim();
-  if (id && id !== "-----") copyIdToClipboard(id);
+  if (id && id !== "-----") {
+    copyText(id, () => {
+      btnCopyId.textContent = "Copie !";
+      setTimeout(() => { btnCopyId.textContent = "Copier l'ID"; }, 1500);
+    });
+  }
 });
 
 // Cliquer sur l'ID en jeu pour le copier
 displayId.addEventListener("click", () => {
   const id = displayId.textContent.trim();
   if (!id || id === "—") return;
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(id).then(() => {
-      const orig = displayId.textContent;
-      displayId.textContent = "✓";
-      setTimeout(() => { displayId.textContent = orig; }, 1000);
-    });
-  }
+  copyText(id, () => {
+    const orig = displayId.textContent;
+    displayId.textContent = "✓";
+    setTimeout(() => { displayId.textContent = orig; }, 1000);
+  });
 });
 
 // =============================================================================
@@ -330,38 +342,45 @@ function updateViewport() {
   updatePixelCursor();
 }
 
+function getZoomFocus() {
+  // Zoom vers le pixel selectionne, sinon vers le centre du viewport
+  const containerRect = canvasContainer.getBoundingClientRect();
+  if (selectedPixel) {
+    return {
+      focusX: (selectedPixel.x + 0.5) * zoomLevel,
+      focusY: (selectedPixel.y + 0.5) * zoomLevel,
+      anchorX: containerRect.width / 2,
+      anchorY: containerRect.height / 2,
+    };
+  }
+  return {
+    focusX: panX + containerRect.width / 2,
+    focusY: panY + containerRect.height / 2,
+    anchorX: containerRect.width / 2,
+    anchorY: containerRect.height / 2,
+  };
+}
+
 btnZoomIn.addEventListener("click", () => {
   if (zoomLevel < MAX_ZOOM) {
-    const containerRect = canvasContainer.getBoundingClientRect();
-    const centerX = panX + containerRect.width / 2;
-    const centerY = panY + containerRect.height / 2;
-
+    const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
     const oldZoom = zoomLevel;
-    // Sauter au prochain palier (displayZoom + 1) * MIN_ZOOM
     const currentDisplay = Math.round(zoomLevel / MIN_ZOOM);
     zoomLevel = Math.min(MAX_ZOOM, MIN_ZOOM * (currentDisplay + 1));
-
-    panX = centerX * (zoomLevel / oldZoom) - containerRect.width / 2;
-    panY = centerY * (zoomLevel / oldZoom) - containerRect.height / 2;
-
+    panX = focusX * (zoomLevel / oldZoom) - anchorX;
+    panY = focusY * (zoomLevel / oldZoom) - anchorY;
     updateViewport();
   }
 });
 
 btnZoomOut.addEventListener("click", () => {
   if (zoomLevel > MIN_ZOOM) {
-    const containerRect = canvasContainer.getBoundingClientRect();
-    const centerX = panX + containerRect.width / 2;
-    const centerY = panY + containerRect.height / 2;
-
+    const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
     const oldZoom = zoomLevel;
-    // Revenir au palier precedent (displayZoom - 1) * MIN_ZOOM, minimum MIN_ZOOM
     const currentDisplay = Math.round(zoomLevel / MIN_ZOOM);
     zoomLevel = Math.max(MIN_ZOOM, MIN_ZOOM * (currentDisplay - 1));
-
-    panX = centerX * (zoomLevel / oldZoom) - containerRect.width / 2;
-    panY = centerY * (zoomLevel / oldZoom) - containerRect.height / 2;
-
+    panX = focusX * (zoomLevel / oldZoom) - anchorX;
+    panY = focusY * (zoomLevel / oldZoom) - anchorY;
     updateViewport();
   }
 });
@@ -420,26 +439,22 @@ canvasContainer.addEventListener("touchmove", (e) => {
     const dist = Math.sqrt(dx * dx + dy * dy);
     const scale = dist / lastPinchDist;
 
-    if ((scale > 1.02 && zoomLevel < MAX_ZOOM) || (scale < 0.98 && zoomLevel > MIN_ZOOM)) {
-      // Point milieu entre les deux doigts dans le container
-      const rect = canvasContainer.getBoundingClientRect();
-      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
-      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+    // Point milieu entre les deux doigts
+    const rect = canvasContainer.getBoundingClientRect();
+    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
 
-      // Point correspondant sur le canvas avant zoom
+    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel * scale));
+    if (newZoom !== zoomLevel) {
       const focusX = panX + midX;
       const focusY = panY + midY;
-
       const oldZoom = zoomLevel;
-      zoomLevel = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel * scale));
-
-      // Ajuster le pan pour que le point reste sous les doigts
+      zoomLevel = newZoom;
       panX = focusX * (zoomLevel / oldZoom) - midX;
       panY = focusY * (zoomLevel / oldZoom) - midY;
-
       updateViewport();
     }
-    lastPinchDist = dist;
+    lastPinchDist = dist; // toujours mis a jour
   }
 }, { passive: true });
 
@@ -708,7 +723,9 @@ function updateTeamUI() {
     myTeamBanner.style.setProperty("--team-color-text", team.color);
     myTeamBanner.style.cursor = "pointer";
 
-    displayTeam.textContent = team.name;
+    displayTeamText.textContent = team.name;
+    displayTeamDot.style.background = team.color;
+    displayTeamDot.classList.remove("hidden");
     displayTeam.style.background = team.color + "33";
     displayTeam.style.color = team.color;
   } else {
@@ -720,7 +737,8 @@ function updateTeamUI() {
     myTeamBanner.style.setProperty("--team-color-text", "#999");
     myTeamBanner.style.cursor = "default";
 
-    displayTeam.textContent = "Solo";
+    displayTeamText.textContent = "Solo";
+    displayTeamDot.classList.add("hidden");
     displayTeam.style.background = "#00000010";
     displayTeam.style.color = "#888";
   }

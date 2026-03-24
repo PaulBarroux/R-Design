@@ -267,6 +267,9 @@ input:focus { border-color: #3690EA; }
 .player-id:active { opacity: 1; background: #3690EA20; }
 
 .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   padding: 0.2rem 0.6rem;
   border-radius: 20px;
   font-size: 0.7rem;
@@ -274,6 +277,13 @@ input:focus { border-color: #3690EA; }
   font-weight: 700;
   background: #00000010;
   color: #888;
+}
+
+.badge-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 /* --- Tabs (toujours fixes sous la player bar) --- */
