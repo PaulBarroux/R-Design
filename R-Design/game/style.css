@@ -1,0 +1,307 @@
+/* =============================================================================
+   ECRAN DE JEU — style.css (affiche sur le projecteur / TV)
+   ============================================================================= */
+
+/* --- Reset CSS --- */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  background: #0f0f23;
+  overflow: hidden; /* Pas de scrollbar */
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+/* =============================================================================
+   HUD (Head-Up Display)
+   Barre d'info fixee en haut de l'ecran : score rouge | timer | score bleu
+   ============================================================================= */
+
+#hud {
+  position: fixed;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%); /* Centrer horizontalement */
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  z-index: 10; /* Au-dessus de tout */
+}
+
+/* Bloc de score d'une equipe */
+.hud-team {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #eee;
+  background: #1a1a2ecc; /* Fond semi-transparent */
+  padding: 0.5rem 1.25rem;
+  border-radius: 12px;
+  backdrop-filter: blur(8px); /* Effet de flou derriere */
+}
+
+/* Timer au centre du HUD */
+#timer {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: #eee;
+  background: #1a1a2ecc;
+  padding: 0.4rem 1.5rem;
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+  font-variant-numeric: tabular-nums; /* Chiffres a largeur fixe (pas de "saut") */
+}
+
+/* Timer en mode urgent : rouge + clignotant (derniers 30 secondes) */
+#timer.urgent {
+  color: #e94560;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* Petit rond colore a cote du nom d'equipe */
+.team-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+
+.team-dot.rouge {
+  background: #e94560;
+}
+
+.team-dot.bleu {
+  background: #4ea8de;
+}
+
+/* =============================================================================
+   ARENA (zone de jeu)
+   ============================================================================= */
+
+/* Wrapper qui centre l'arene dans l'espace disponible */
+#arena-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100vw;
+  height: calc(100vh - 80px); /* Toute la hauteur moins l'espace du HUD */
+  margin-top: 80px;
+}
+
+/* L'arene elle-meme : taille fixe de 1200x800, redimensionnee via transform: scale() */
+#arena {
+  position: relative; /* Necessaire pour que les enfants en position: absolute se placent dedans */
+  width: 1200px;
+  height: 800px;
+  background: #16213e;
+  border-radius: 16px;
+  border: 2px solid #333;
+  overflow: hidden;
+  transform-origin: center center; /* Le scale se fait depuis le centre */
+}
+
+/* Message "En attente de joueurs..." affiche quand personne n'est connecte */
+#waiting {
+  position: absolute;
+  inset: 0; /* Raccourci pour top:0 right:0 bottom:0 left:0 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #555;
+  font-weight: 600;
+}
+
+/* =============================================================================
+   JOUEURS
+   Chaque joueur est une div positionnee en absolu dans l'arene.
+   Structure : un cercle colore + le pseudo en dessous.
+   ============================================================================= */
+
+.player {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  /* Transition fluide du mouvement (80ms = temps entre 2 envois de position) */
+  transition: left 0.08s linear, top 0.08s linear;
+  pointer-events: none; /* Ne bloque pas les clics */
+}
+
+/* Le cercle du joueur */
+.player-dot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 3px solid white;
+}
+
+/* Couleurs par equipe avec un halo lumineux (box-shadow) */
+.player-dot.rouge {
+  background: #e94560;
+  box-shadow: 0 0 12px #e9456066;
+}
+
+.player-dot.bleu {
+  background: #4ea8de;
+  box-shadow: 0 0 12px #4ea8de66;
+}
+
+/* Pseudo affiche sous le cercle */
+.player-name {
+  margin-top: 4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #eee;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); /* Ombre pour lisibilite */
+  white-space: nowrap;
+}
+
+/* =============================================================================
+   FRUITS
+   Les fruits sont des emojis positionnes en absolu dans l'arene.
+   ============================================================================= */
+
+.fruit {
+  position: absolute;
+  font-size: 1.8rem;
+  line-height: 1;
+  pointer-events: none;
+  transition: left 0.1s, top 0.1s;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5)); /* Ombre portee */
+}
+
+/* =============================================================================
+   ECRAN DE FIN DE PARTIE (overlay)
+   S'affiche par-dessus tout quand la partie se termine.
+   ============================================================================= */
+
+/* L'overlay couvre tout l'ecran avec un fond sombre semi-transparent */
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: #0f0f23ee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100; /* Par-dessus tout, y compris le HUD */
+}
+
+.overlay.hidden {
+  display: none;
+}
+
+/* Carte centrale avec les resultats */
+.gameover-card {
+  text-align: center;
+  color: #eee;
+}
+
+.gameover-card h1 {
+  font-size: 3rem;
+  margin-bottom: 2rem;
+}
+
+/* Scores finaux : Rouge VS Bleu */
+.gameover-scores {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  justify-content: center;
+  margin-bottom: 2rem;
+}
+
+.gameover-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+}
+
+.gameover-team .team-dot {
+  width: 20px;
+  height: 20px;
+}
+
+/* Le nombre de points en tres gros */
+.gameover-points {
+  font-size: 4rem;
+  font-weight: 900;
+}
+
+/* Couleur du score selon l'equipe */
+.gameover-team.rouge .gameover-points {
+  color: #e94560;
+}
+
+.gameover-team.bleu .gameover-points {
+  color: #4ea8de;
+}
+
+/* "VS" entre les deux equipes */
+.gameover-vs {
+  font-size: 1.5rem;
+  font-weight: 800;
+  opacity: 0.4;
+}
+
+/* L'equipe gagnante est legerement agrandie */
+.gameover-team.winner {
+  transform: scale(1.15);
+}
+
+/* Texte "Prochaine partie dans Xs" */
+#gameover-restart {
+  font-size: 1.2rem;
+  opacity: 0.6;
+  margin-top: 1rem;
+}
+
+/* =============================================================================
+   QR CODE
+   Affiche en bas a droite de l'ecran pour que les joueurs puissent scanner
+   et rejoindre la partie facilement.
+   ============================================================================= */
+
+#qr-box {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  background: #1a1a2ecc;
+  padding: 1rem;
+  border-radius: 16px;
+  backdrop-filter: blur(8px);
+  z-index: 10;
+}
+
+/* Le QR code genere est une balise <img> a l'interieur de cette div */
+#qr-code img {
+  display: block;
+  width: 120px;
+  height: 120px;
+  border-radius: 8px;
+}
+
+#qr-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #eee;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

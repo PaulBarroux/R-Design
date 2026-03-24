@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Empecher le zoom sur mobile pour que le controller se comporte comme une app -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Controller</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <!--
+      ECRAN 1 : Formulaire pour rejoindre la partie
+      Cet ecran s'affiche quand le joueur arrive sur la page.
+      Il disparait une fois que le serveur confirme la connexion.
+    -->
+    <div id="screen-join" class="screen">
+      <h1>Rejoindre la partie</h1>
+
+      <div class="form">
+        <!-- Champ pour entrer son pseudo -->
+        <label for="pseudo">Pseudo</label>
+        <input type="text" id="pseudo" placeholder="Ton pseudo..." maxlength="12" autocomplete="off" />
+
+        <!-- Choix de l'equipe (rouge ou bleu) -->
+        <label>Equipe</label>
+        <div class="team-select">
+          <!-- Le bouton "rouge" est selectionne par defaut (class "selected") -->
+          <button class="team-btn selected" data-team="rouge">Rouge</button>
+          <button class="team-btn" data-team="bleu">Bleu</button>
+        </div>
+
+        <!-- Bouton pour envoyer le formulaire au serveur -->
+        <button id="btn-join" class="btn-primary">Rejoindre</button>
+      </div>
+    </div>
+
+    <!--
+      ECRAN 2 : Le controller (manette)
+      Cache par defaut (class "hidden"), s'affiche apres la connexion.
+      Contient : infos du joueur, scores, timer, et le D-pad.
+    -->
+    <div id="screen-controller" class="screen hidden">
+
+      <!-- Mini HUD : pseudo + equipe + scores + timer -->
+      <div class="controller-hud">
+        <div class="player-info">
+          <span id="player-pseudo">-</span>
+          <span id="player-team" class="badge">-</span>
+        </div>
+        <!-- Scores et timer affiches sur le telephone -->
+        <div class="controller-score">
+          <span class="mini-score rouge"><span id="ctrl-score-rouge">0</span></span>
+          <span id="ctrl-timer">5:00</span>
+          <span class="mini-score bleu"><span id="ctrl-score-bleu">0</span></span>
+        </div>
+      </div>
+
+      <!--
+        D-PAD : les 4 fleches directionnelles
+        Chaque bouton a un attribut "data-dir" qui indique la direction.
+        Le script JS lit cet attribut pour savoir quel message envoyer au serveur.
+      -->
+      <div class="dpad">
+        <button class="arrow arrow-up" data-dir="up">&#9650;</button>
+        <div class="dpad-middle">
+          <button class="arrow arrow-left" data-dir="left">&#9664;</button>
+          <div class="arrow-center"></div>
+          <button class="arrow arrow-right" data-dir="right">&#9654;</button>
+        </div>
+        <button class="arrow arrow-down" data-dir="down">&#9660;</button>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
