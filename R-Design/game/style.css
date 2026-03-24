@@ -1,17 +1,13 @@
 /* =============================================================================
-   ECRAN DE JEU — style.css (affiche sur le projecteur / TV)
+   ECRAN DE JEU — style.css
    ============================================================================= */
 
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+* { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
   font-family: "Segoe UI", system-ui, sans-serif;
-  background: #0f0f1a;
-  color: #eee;
+  background: #f0f0f5;
+  color: #222;
   height: 100vh;
   overflow: hidden;
   display: flex;
@@ -19,19 +15,17 @@ body {
   justify-content: center;
 }
 
-/* =============================================================================
-   LEADERBOARD
-   ============================================================================= */
+/* --- LEADERBOARD --- */
 
 #leaderboard {
   position: fixed;
   top: 16px;
   left: 16px;
   width: 260px;
-  background: #1a1a2ecc;
+  background: #ffffffcc;
   backdrop-filter: blur(8px);
   border-radius: 12px;
-  border: 1px solid #333;
+  border: 1px solid #ddd;
   padding: 12px;
   z-index: 10;
 }
@@ -43,15 +37,12 @@ body {
   margin-bottom: 8px;
 }
 
-.leaderboard-header h2 {
-  font-size: 0.9rem;
-  font-weight: 700;
-}
+.leaderboard-header h2 { font-size: 0.9rem; font-weight: 700; }
 
 .player-count {
   font-size: 0.7rem;
   opacity: 0.5;
-  background: #ffffff10;
+  background: #00000010;
   padding: 2px 8px;
   border-radius: 10px;
 }
@@ -69,12 +60,9 @@ body {
   padding: 4px 6px;
   border-radius: 6px;
   font-size: 0.78rem;
-  transition: background 0.2s;
 }
 
-.lb-entry:nth-child(-n+3) {
-  background: #ffffff08;
-}
+.lb-entry:nth-child(-n+3) { background: #00000008; }
 
 .lb-rank {
   width: 20px;
@@ -110,45 +98,24 @@ body {
   font-size: 0.75rem;
 }
 
-/* Indicateur du mode leaderboard */
-.lb-mode-indicator {
-  display: flex;
-  gap: 4px;
-  margin-bottom: 6px;
-}
-
-.lb-mode-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #555;
-  transition: background 0.3s;
-}
-
-.lb-mode-dot.active {
-  background: #3690EA;
-}
-
-/* =============================================================================
-   CANVAS
-   ============================================================================= */
+/* --- CANVAS --- */
 
 #canvas-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
+  max-width: 100vw;
+  max-height: 100vh;
 }
 
 #pixel-canvas {
   image-rendering: pixelated;
-  border: 2px solid #333;
+  border: 2px solid #ccc;
   border-radius: 4px;
-  /* La taille est calculee en JS pour que les pixels soient carres et remplissent l'ecran */
 }
 
-/* =============================================================================
-   QR CODE
-   ============================================================================= */
+/* --- QR CODE --- */
 
 #qr-box {
   position: fixed;
@@ -158,27 +125,19 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 6px;
-  background: #1a1a2ecc;
+  background: #ffffffcc;
   backdrop-filter: blur(8px);
   padding: 12px;
   border-radius: 12px;
-  border: 1px solid #333;
+  border: 1px solid #ddd;
   z-index: 10;
 }
 
-#qr-code img {
-  border-radius: 4px;
-}
+#qr-code img { border-radius: 4px; }
+#qr-label { font-size: 0.7rem; opacity: 0.6; font-weight: 600; }
+#wifi-label { font-size: 0.65rem; opacity: 0.5; }
 
-#qr-label {
-  font-size: 0.7rem;
-  opacity: 0.6;
-  font-weight: 600;
-}
-
-/* =============================================================================
-   ECRAN D'ATTENTE
-   ============================================================================= */
+/* --- ECRAN D'ATTENTE --- */
 
 #waiting {
   position: fixed;
@@ -186,15 +145,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #0f0f1aee;
+  background: #f0f0f5ee;
   z-index: 5;
   transition: opacity 0.5s;
 }
 
-#waiting.hidden {
-  opacity: 0;
-  pointer-events: none;
-}
+#waiting.hidden { opacity: 0; pointer-events: none; }
 
 .waiting-content {
   text-align: center;
@@ -203,16 +159,6 @@ body {
   gap: 0.75rem;
 }
 
-.waiting-content h1 {
-  font-size: 3rem;
-}
-
-.waiting-content p {
-  font-size: 1.2rem;
-  opacity: 0.6;
-}
-
-.muted {
-  opacity: 0.3 !important;
-  font-size: 0.9rem !important;
-}
+.waiting-content h1 { font-size: 3rem; }
+.waiting-content p { font-size: 1.2rem; opacity: 0.6; }
+.muted { opacity: 0.3 !important; font-size: 0.9rem !important; }

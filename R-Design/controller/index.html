@@ -9,95 +9,162 @@
   <body>
 
     <!-- ================================================================
-         ECRAN 1 : Rejoindre la partie (ou se reconnecter)
+         ECRAN 1 : Rejoindre / Se reconnecter
          ================================================================ -->
     <div id="screen-join" class="screen">
       <h1>🎨 Pixel War</h1>
 
       <div class="form">
+        <!-- Nouveau compte -->
         <label for="pseudo">Pseudo</label>
         <input type="text" id="pseudo" placeholder="Ton pseudo..." maxlength="16" autocomplete="off" />
-
         <button id="btn-join" class="btn-primary">Rejoindre</button>
 
         <div class="separator">ou</div>
 
-        <label for="reconnect-id">Se reconnecter (ID)</label>
-        <input type="text" id="reconnect-id" placeholder="Ex: AB3K9" maxlength="5" autocomplete="off"
-               style="text-transform: uppercase; text-align: center; letter-spacing: 0.3em; font-weight: 700;" />
+        <!-- Reconnexion -->
+        <label for="reconnect-id">Se reconnecter avec mon ID</label>
+        <input type="text" id="reconnect-id" placeholder="Ex: AB3K9" maxlength="5" autocomplete="off" />
         <button id="btn-reconnect" class="btn-secondary">Reconnecter</button>
+
+        <!-- Message d'erreur in-game (pas d'alert native) -->
+        <div id="join-error" class="error-msg hidden"></div>
       </div>
     </div>
 
     <!-- ================================================================
-         ECRAN 2 : Interface de jeu (palette + canvas + equipes)
+         ECRAN 1b : ID reveal — Affiche l'ID apres creation
+         ================================================================ -->
+    <div id="screen-id-reveal" class="screen hidden">
+      <h1>🎉 Bienvenue !</h1>
+      <p class="subtitle">Voici ton identifiant unique :</p>
+      <div id="reveal-id" class="big-id">-----</div>
+      <p class="subtitle muted">Note-le bien ! Il te permettra de te reconnecter.</p>
+      <div class="id-actions">
+        <button id="btn-copy-id" class="btn-copy">Copier l'ID</button>
+        <a id="btn-sms-id" class="btn-sms" href="#">Envoyer par SMS</a>
+      </div>
+      <button id="btn-continue" class="btn-primary">C'est note, continuer</button>
+    </div>
+
+    <!-- ================================================================
+         ECRAN 2 : Interface de jeu
          ================================================================ -->
     <div id="screen-game" class="screen hidden">
 
-      <!-- Barre d'info joueur -->
+      <!-- Barre d'info joueur (toujours en haut) -->
       <div class="player-bar">
         <span id="display-pseudo">—</span>
-        <span id="display-id" class="player-id">—</span>
+        <span id="display-id" class="player-id" title="Copier l'ID">—</span>
         <span id="display-team" class="badge">Solo</span>
       </div>
 
-      <!-- Canvas interactif (mini-vue du canvas complet) -->
-      <div id="canvas-wrapper">
-        <canvas id="pixel-canvas"></canvas>
-        <div id="pixel-info-tooltip" class="hidden"></div>
-      </div>
-
-      <!-- Coordonnees du pixel survole -->
-      <div id="coords-display">
-        <span id="coords-text">—</span>
-      </div>
-
-      <!-- Palette de couleurs -->
-      <div id="palette"></div>
-
-      <!-- Cooldown timer -->
-      <div id="cooldown-bar">
-        <div id="cooldown-fill"></div>
-        <span id="cooldown-text">Pret !</span>
-      </div>
-
-      <!-- Navigation par onglets -->
+      <!-- Tabs (toujours en dessous de la barre joueur) -->
       <div class="tabs">
-        <button class="tab active" data-tab="canvas-tab">Canvas</button>
-        <button class="tab" data-tab="team-tab">Equipe</button>
+        <button class="tab active" data-tab="canvas">Canvas</button>
+        <button class="tab" data-tab="team">Equipe</button>
       </div>
 
-      <!-- Contenu onglet equipe -->
-      <div id="team-tab" class="tab-content hidden">
-        <!-- Si pas d'equipe -->
-        <div id="no-team">
-          <h3>Rejoindre ou creer une equipe</h3>
+      <!-- Message d'erreur in-game -->
+      <div id="game-error" class="error-msg hidden"></div>
 
-          <div class="form">
-            <label>Creer une equipe</label>
+      <!-- ============================================================
+           ONGLET CANVAS
+           ============================================================ -->
+      <div id="tab-canvas" class="tab-content">
+
+        <!-- Canvas avec zoom/pan -->
+        <div id="canvas-container">
+          <div id="canvas-viewport">
+            <canvas id="pixel-canvas"></canvas>
+            <!-- Curseur de selection (pixel selectionne) -->
+            <div id="pixel-cursor" class="hidden"></div>
+          </div>
+        </div>
+
+        <!-- Controles de zoom + coordonnees -->
+        <div class="canvas-controls">
+          <button id="btn-zoom-out" class="ctrl-btn">−</button>
+          <span id="zoom-level">1x</span>
+          <button id="btn-zoom-in" class="ctrl-btn">+</button>
+          <span class="spacer"></span>
+          <span id="coords-text">—</span>
+        </div>
+
+        <!-- Palette de couleurs -->
+        <div id="palette"></div>
+
+        <!-- Bouton de confirmation -->
+        <button id="btn-confirm-pixel" class="btn-confirm hidden" disabled>
+          Selectionne un pixel
+        </button>
+
+        <!-- Cooldown -->
+        <div id="cooldown-bar">
+          <div id="cooldown-fill"></div>
+          <span id="cooldown-text">Pret !</span>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ONGLET EQUIPE — VUE GENERALE
+           ============================================================ -->
+      <div id="tab-team" class="tab-content hidden">
+
+        <!-- Bandeau mon equipe -->
+        <div id="my-team-banner" class="my-team-banner">
+          <div id="banner-dot" class="banner-dot"></div>
+          <div class="my-team-banner-info">
+            <span class="my-team-banner-label">Mon équipe</span>
+            <span id="banner-name" class="my-team-banner-name">Solo</span>
+          </div>
+          <span class="my-team-banner-arrow">›</span>
+        </div>
+
+        <!-- Creer une equipe (expandable) -->
+        <div class="create-team-section">
+          <button id="btn-toggle-create" class="btn-toggle-create">+ Creer une equipe</button>
+          <div id="create-team-form" class="create-team-form hidden">
             <input type="text" id="team-name" placeholder="Nom de l'equipe" maxlength="24" autocomplete="off" />
             <div id="team-color-picker" class="team-color-picker"></div>
-            <button id="btn-create-team" class="btn-primary">Creer</button>
-          </div>
-
-          <div class="separator">ou rejoindre</div>
-
-          <div id="teams-list" class="teams-list">
-            <p class="muted">Aucune equipe pour l'instant</p>
+            <button id="btn-create-team" class="btn-primary full-width">Creer</button>
           </div>
         </div>
 
-        <!-- Si dans une equipe -->
-        <div id="in-team" class="hidden">
-          <div class="team-info">
-            <div id="my-team-color" class="team-dot-big"></div>
-            <h3 id="my-team-name">—</h3>
-            <p id="my-team-members">0 membres</p>
-          </div>
-          <button id="btn-leave-team" class="btn-danger">Quitter l'equipe</button>
+        <!-- Recherche + liste de toutes les equipes -->
+        <div class="search-bar">
+          <input type="text" id="team-search" placeholder="Rechercher une equipe..." autocomplete="off" />
         </div>
+
+        <div id="teams-list" class="teams-list">
+          <p class="muted">Aucune equipe pour l'instant</p>
+        </div>
+
       </div>
+
+      <!-- ============================================================
+           ONGLET EQUIPE — VUE DETAIL
+           ============================================================ -->
+      <div id="tab-team-detail" class="tab-content hidden">
+
+        <div class="detail-header">
+          <button id="btn-back-teams" class="btn-back">← Retour</button>
+          <div id="detail-team-dot" class="team-dot-big"></div>
+          <div class="detail-title">
+            <h3 id="detail-team-name">—</h3>
+            <p id="detail-team-stats" class="muted">—</p>
+          </div>
+        </div>
+
+        <div id="detail-members-list" class="members-list"></div>
+
+        <button id="btn-detail-join" class="btn-primary full-width">Rejoindre</button>
+        <button id="btn-detail-leave" class="btn-danger full-width hidden">Quitter l'equipe</button>
+
+      </div>
+
     </div>
+
 
     <script src="script.js"></script>
   </body>

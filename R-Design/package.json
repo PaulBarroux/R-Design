@@ -1,7 +1,7 @@
 {
   "name": "pixel-war",
   "version": "1.0.0",
-  "description": "Pixel Wars multijoueur",
+  "description": "Pixel Wars multijoueur — inspiré de r/place et CDawgVA",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
