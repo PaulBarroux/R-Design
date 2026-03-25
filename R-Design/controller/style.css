@@ -6,7 +6,7 @@
 
 body {
   font-family: "Segoe UI", system-ui, sans-serif;
-  background: #f0f0f5;
+  background: #ffffff;
   color: #222;
   min-height: 100dvh;
   overflow-x: hidden;
@@ -20,21 +20,59 @@ body {
   flex-direction: column;
   align-items: center;
   min-height: 100dvh;
-  padding: 1.5rem;
-  gap: 1rem;
+  padding: 2rem 1.5rem;
+  gap: 1.25rem;
 }
 
 #screen-join, #screen-id-reveal {
-  justify-content: center;
+  justify-content: flex-start;
+  padding-top: 0;
+  overflow: hidden;
 }
 
 #screen-game {
-  justify-content: flex-start;
-  padding-top: 0.75rem;
+  position: fixed;
+  inset: 0;
+  min-height: unset;
+  padding: 0;
   gap: 0;
+  overflow: hidden;
+  justify-content: flex-start;
+  align-items: stretch;
 }
 
 .hidden { display: none !important; }
+
+/* --- Hero colored blocks banner --- */
+.hero-blocks {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+  flex-shrink: 0;
+  margin-bottom: 0.5rem;
+}
+
+.block {
+  position: absolute;
+  border-radius: 8px;
+}
+
+.block-red    { background: #FF0000; width: 120px; height: 130px; top: 100px; left: -30px; }
+.block-cyan   { background: #00AAFF; width: 140px; height: 150px; top: 40px;  left: 80px; }
+.block-green  { background: #55AA00; width: 150px; height: 160px; top: 60px;  left: 190px; }
+.block-blue   { background: #0044FF; width: 120px; height: 130px; top: 80px;  left: 310px; z-index: 1; }
+.block-yellow { background: #FFD600; width: 140px; height: 140px; top: 50px;  right: 50px; }
+.block-orange { background: #FF8800; width: 120px; height: 120px; top: 70px;  right: -30px; }
+
+/* --- App title --- */
+.app-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  align-self: flex-start;
+  padding-left: 0.25rem;
+}
 
 /* --- WiFi notice --- */
 .wifi-notice {
@@ -64,15 +102,16 @@ h3 { font-size: 1.1rem; font-weight: 700; }
 }
 
 label {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  opacity: 0.6;
+  letter-spacing: 0.12em;
+  opacity: 0.5;
+  font-weight: 700;
 }
 
 input {
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
   border: 2px solid #ddd;
   background: #ffffff;
   color: #222;
@@ -82,7 +121,69 @@ input {
   width: 100%;
 }
 
-input:focus { border-color: #3690EA; }
+input:focus { border-color: #222; }
+
+/* Filled input (pseudo) */
+.input-filled {
+  background: #f2f2f2;
+  border-color: transparent;
+}
+
+.input-filled:focus { border-color: #222; background: #fff; }
+
+/* Outlined input (reconnect ID) */
+.input-outlined {
+  background: transparent;
+  border: 2px solid #ddd;
+  text-transform: uppercase;
+  text-align: center;
+  letter-spacing: 0.3em;
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.input-outlined:focus { border-color: #222; }
+
+/* Separator line (no text) */
+.separator-line {
+  width: 60%;
+  height: 1px;
+  background: #e0e0e0;
+  margin: 0.5rem auto;
+}
+
+/* --- Black button (primary action) --- */
+.btn-black {
+  padding: 1rem;
+  border-radius: 30px;
+  border: none;
+  background: #000;
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.1s, opacity 0.2s;
+}
+
+.btn-black:active { transform: scale(0.97); }
+.btn-black:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- Outlined button --- */
+.btn-outlined {
+  padding: 0.85rem;
+  border-radius: 30px;
+  border: 2px solid #222;
+  background: transparent;
+  color: #222;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
+  transition: transform 0.1s;
+}
+
+.btn-outlined:active { transform: scale(0.97); background: #f5f5f5; }
 
 #reconnect-id {
   text-transform: uppercase;
@@ -95,9 +196,9 @@ input:focus { border-color: #3690EA; }
 /* --- Buttons --- */
 .btn-primary {
   padding: 0.9rem;
-  border-radius: 12px;
+  border-radius: 30px;
   border: none;
-  background: #3690EA;
+  background: #000;
   color: white;
   font-size: 1rem;
   font-weight: 700;
@@ -110,16 +211,16 @@ input:focus { border-color: #3690EA; }
 .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .btn-primary.highlight {
-  background: #3690EA;
-  box-shadow: 0 0 16px #3690EA44;
+  background: #000;
+  box-shadow: 0 0 16px rgba(0,0,0,0.2);
 }
 
 .btn-secondary {
   padding: 0.75rem;
-  border-radius: 12px;
-  border: 2px solid #ccc;
+  border-radius: 30px;
+  border: 2px solid #ddd;
   background: transparent;
-  color: #666;
+  color: #555;
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
@@ -128,7 +229,7 @@ input:focus { border-color: #3690EA; }
 
 .btn-danger {
   padding: 0.85rem;
-  border-radius: 12px;
+  border-radius: 30px;
   border: 2px solid #e94560;
   background: #e9456022;
   color: #e94560;
@@ -140,41 +241,47 @@ input:focus { border-color: #3690EA; }
 .full-width { width: 100%; }
 
 .btn-confirm {
-  padding: 0.85rem;
-  border-radius: 12px;
+  padding: 1rem;
+  border-radius: 30px;
   border: none;
-  background: #00A368;
+  background: #000;
   color: white;
   font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   width: 100%;
-  max-width: 400px;
   transition: transform 0.1s, opacity 0.2s;
+  letter-spacing: 0.02em;
+  margin-top: 0.1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.btn-confirm:disabled { opacity: 0.3; background: #555; cursor: not-allowed; }
+.btn-confirm:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-confirm:not(:disabled):active { transform: scale(0.97); }
 
 .separator {
   text-align: center;
   opacity: 0.4;
   font-size: 0.85rem;
-  margin: 0.25rem 0;
+  margin: 0.5rem 0;
 }
 
 /* --- ID Reveal --- */
 .big-id {
   font-family: monospace;
-  font-size: 3rem;
+  font-size: 2.6rem;
   font-weight: 900;
-  letter-spacing: 0.4em;
-  color: #3690EA;
-  background: #3690EA10;
-  padding: 0.75rem 1.5rem;
+  letter-spacing: 0.35em;
+  color: #111;
+  background: #f5f3ef;
+  padding: 1rem 1.5rem;
   border-radius: 16px;
-  border: 2px dashed #3690EA55;
+  border: 2px dashed #ccc;
   text-align: center;
+  width: 100%;
+  max-width: 360px;
 }
 
 /* --- ID Actions (reveal screen) --- */
@@ -225,12 +332,12 @@ input:focus { border-color: #3690EA; }
   border: 1px solid #e94560;
   color: #e94560;
   border-radius: 10px;
-  padding: 0.6rem 1rem;
-  font-size: 0.85rem;
+  padding: 0.4rem 1rem;
+  font-size: 0.82rem;
   font-weight: 600;
   text-align: center;
   width: 100%;
-  max-width: 360px;
+  max-width: 400px;
   animation: shake 0.3s;
 }
 
@@ -238,6 +345,18 @@ input:focus { border-color: #3690EA; }
   0%, 100% { transform: translateX(0); }
   25% { transform: translateX(-4px); }
   75% { transform: translateX(4px); }
+}
+
+/* --- Game header --- */
+.game-header {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #ffffff;
+  border-bottom: none;
+  padding: 0.5rem 1rem 0;
+  z-index: 20;
 }
 
 /* --- Player bar --- */
@@ -248,35 +367,54 @@ input:focus { border-color: #3690EA; }
   font-size: 1rem;
   font-weight: 600;
   width: 100%;
-  max-width: 400px;
-  justify-content: center;
-  flex-wrap: wrap;
-  padding: 0.5rem 0;
+  max-width: 480px;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  padding: 0.2rem 0;
+}
+
+.player-left {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-width: 0;
+}
+
+#display-pseudo {
+  font-size: 1.05rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 160px;
 }
 
 .player-id {
   font-family: monospace;
-  font-size: 0.75rem;
-  background: #00000010;
-  padding: 0.15rem 0.5rem;
-  border-radius: 6px;
-  opacity: 0.7;
+  font-size: 0.78rem;
+  font-weight: 600;
+  opacity: 0.45;
   cursor: pointer;
+  white-space: nowrap;
 }
 
-.player-id:active { opacity: 1; background: #3690EA20; }
+.player-id::before { content: "["; }
+.player-id::after  { content: "]"; }
+
+.player-id:active { opacity: 0.9; }
 
 .badge {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 0.2rem 0.6rem;
+  padding: 0.25rem 0.65rem;
   border-radius: 20px;
-  font-size: 0.7rem;
-  text-transform: uppercase;
+  font-size: 0.8rem;
   font-weight: 700;
-  background: #00000010;
-  color: #888;
+  background: transparent;
+  color: #222;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .badge-dot {
@@ -286,67 +424,124 @@ input:focus { border-color: #3690EA; }
   flex-shrink: 0;
 }
 
-/* --- Tabs (toujours fixes sous la player bar) --- */
+/* --- Tabs (pill style, full width) --- */
 .tabs {
   display: flex;
   width: 100%;
-  max-width: 400px;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #ddd;
-  margin: 0.4rem 0;
+  background: #f0f0f0;
+  border-radius: 30px;
+  padding: 3px;
+  gap: 3px;
+  margin: 0.5rem 0 0.4rem;
   flex-shrink: 0;
+  border: none;
 }
 
 .tab {
   flex: 1;
-  padding: 0.6rem;
-  background: #ffffff;
+  padding: 0.45rem 0.75rem;
+  background: transparent;
   border: none;
-  color: #999;
+  color: #888;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, color 0.2s;
+  border-radius: 26px;
+  transition: background 0.18s, color 0.18s;
 }
 
 .tab.active {
-  background: #3690EA15;
-  color: #3690EA;
+  background: #000;
+  color: #fff;
 }
 
 /* --- Tab content --- */
 .tab-content {
+  flex: 1;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
+}
+
+/* Canvas tab: fills remaining space, sheet overlays bottom */
+#tab-canvas {
+  overflow: hidden;
+  position: relative;
+}
+
+/* Team tabs: scrollable with padding */
+#tab-team,
+#tab-team-detail {
+  overflow-y: auto;
+  padding: 1rem;
+  gap: 0.75rem;
   align-items: center;
-  width: 100%;
-  max-width: 400px;
-  gap: 0.5rem;
-  padding-top: 0.4rem;
+  background: #f8f8f8;
 }
 
 /* --- Canvas container with zoom/pan --- */
 #canvas-container {
-  width: 100%;
-  aspect-ratio: 1;
-  border: 2px solid #ddd;
-  border-radius: 8px;
+  position: absolute;
+  inset: 0;
+  border: none;
+  border-radius: 0;
   overflow: hidden;
-  position: relative;
   touch-action: none;
-  background: #e8e8e8;
+  background: #ffffff;
+}
+
+/* --- Bottom sheet (flottante, draggable) --- */
+.bottom-sheet {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  right: 8px;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.4rem 1rem 1rem;
+  background: #ffffff;
+  border-radius: 32px;
+  box-shadow: 0 4px 32px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+  will-change: transform;
+  touch-action: none;
+}
+
+.sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: #ddd;
+  border-radius: 2px;
+  margin: 0.25rem auto 0.4rem;
+  flex-shrink: 0;
+  cursor: grab;
+}
+
+.sheet-handle:active { cursor: grabbing; }
+
+.sheet-section-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.4;
+  margin-top: 0.1rem;
 }
 
 #canvas-viewport {
   position: absolute;
   top: 0; left: 0;
   transform-origin: 0 0;
+  background: #ffffff;
+  z-index: 0;
   /* taille et transform geres en JS */
 }
 
 #pixel-canvas {
   display: block;
+  position: absolute;
   image-rendering: pixelated;
   cursor: crosshair;
 }
@@ -369,10 +564,9 @@ input:focus { border-color: #3690EA; }
   flex-direction: column;
   gap: 0.5rem;
   width: 100%;
-  max-width: 400px;
-  background: #fff;
-  border: 1px solid #ddd;
-  border-radius: 12px;
+  background: #3690EA10;
+  border: 1px solid #3690EA33;
+  border-radius: 10px;
   padding: 0.75rem;
 }
 
@@ -458,6 +652,7 @@ input:focus { border-color: #3690EA; }
   gap: 0.5rem;
   width: 100%;
   font-size: 0.8rem;
+  flex-shrink: 0;
 }
 
 .ctrl-btn {
@@ -485,6 +680,22 @@ input:focus { border-color: #3690EA; }
 }
 
 .spacer { flex: 1; }
+
+/* Controles overlay pour les membres (toggle + opacite) */
+.member-overlay-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.member-opacity-slider {
+  width: 80px;
+  accent-color: #3690EA;
+  height: 4px;
+  border: none;
+  padding: 0;
+  background: none;
+}
 
 .pixel-info {
   display: flex;
@@ -519,48 +730,49 @@ input:focus { border-color: #3690EA; }
   flex-shrink: 0;
 }
 
-/* --- Palette --- */
+/* --- Palette (2 lignes × 10 colonnes) --- */
 #palette {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  justify-content: center;
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 5px;
   width: 100%;
 }
 
 .palette-color {
-  width: 30px;
-  height: 30px;
-  border-radius: 6px;
-  border: 2px solid transparent;
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: 10px;
+  border: 3px solid transparent;
   cursor: pointer;
   transition: transform 0.1s, border-color 0.15s;
 }
 
-.palette-color:active { transform: scale(0.9); }
+.palette-color:active { transform: scale(0.88); }
 
 .palette-color.selected {
   border-color: white;
-  transform: scale(1.15);
-  box-shadow: 0 0 8px rgba(255,255,255,0.4);
+  transform: scale(1.08);
+  box-shadow: 0 0 8px rgba(0,0,0,0.3);
 }
 
-/* --- Cooldown --- */
+/* --- Cooldown (dans le header, toujours visible) --- */
 #cooldown-bar {
-  width: 100%;
-  height: 28px;
-  background: #e0e0e0;
-  border-radius: 8px;
   position: relative;
+  flex-shrink: 0;
+  height: 30px;
+  min-width: 52px;
+  background: #f0f0f0;
+  border-radius: 20px;
   overflow: hidden;
-  border: 1px solid #ddd;
 }
 
 #cooldown-fill {
+  position: absolute;
+  top: 0; left: 0;
   height: 100%;
   width: 0%;
-  background: #3690EA;
-  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 20px;
   transition: width 0.5s linear;
 }
 
@@ -570,14 +782,24 @@ input:focus { border-color: #3690EA; }
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   font-weight: 700;
-  pointer-events: none;
+  color: #555;
+  padding: 0 0.75rem;
+  white-space: nowrap;
+}
+
+#cooldown-bar.ready {
+  background: #d1fae5;
 }
 
 #cooldown-bar.ready #cooldown-fill {
   width: 100%;
-  background: #00A368;
+  background: transparent;
+}
+
+#cooldown-bar.ready #cooldown-text {
+  color: #059669;
 }
 
 /* --- Team tab --- */
@@ -588,12 +810,13 @@ input:focus { border-color: #3690EA; }
   align-items: center;
   gap: 0.75rem;
   width: 100%;
-  padding: 0.75rem 1rem;
-  background: var(--team-color-bg, #f5f5f5);
-  border: 2px solid var(--team-color-border, #ddd);
-  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  background: var(--team-color-bg, #ffffff);
+  border: 1px solid var(--team-color-border, #e0e0e0);
+  border-radius: 16px;
   cursor: pointer;
   transition: filter 0.15s;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
 }
 
 .my-team-banner:active { filter: brightness(0.96); }
@@ -643,11 +866,11 @@ input:focus { border-color: #3690EA; }
 
 .btn-toggle-create {
   width: 100%;
-  padding: 0.6rem;
-  border-radius: 10px;
-  border: 1px dashed #3690EA;
+  padding: 0.7rem;
+  border-radius: 14px;
+  border: 1px dashed #aaa;
   background: transparent;
-  color: #3690EA;
+  color: #555;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -666,14 +889,14 @@ input:focus { border-color: #3690EA; }
   align-items: center;
   gap: 0.6rem;
   width: 100%;
-  padding-bottom: 0.5rem;
-  border-bottom: 1px solid #eee;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #e0e0e0;
 }
 
 .btn-back {
   background: none;
   border: none;
-  color: #3690EA;
+  color: #222;
   font-size: 0.85rem;
   font-weight: 600;
   cursor: pointer;
@@ -690,7 +913,10 @@ input:focus { border-color: #3690EA; }
 
 .search-bar input {
   font-size: 0.9rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 1px solid #e0e0e0;
 }
 
 .team-color-picker {
@@ -716,8 +942,6 @@ input:focus { border-color: #3690EA; }
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  max-height: 250px;
-  overflow-y: auto;
   width: 100%;
 }
 
@@ -725,15 +949,16 @@ input:focus { border-color: #3690EA; }
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.6rem 0.75rem;
+  padding: 0.7rem 0.85rem;
   background: #ffffff;
-  border-radius: 10px;
-  border: 1px solid #ddd;
+  border-radius: 14px;
+  border: 1px solid #e0e0e0;
   cursor: pointer;
   transition: border-color 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 
-.team-item:active { border-color: #3690EA; }
+.team-item:active { border-color: #222; }
 
 .team-dot {
   width: 14px;
@@ -767,8 +992,6 @@ input:focus { border-color: #3690EA; }
   display: flex;
   flex-direction: column;
   gap: 0.3rem;
-  max-height: 300px;
-  overflow-y: auto;
   margin-bottom: 0.5rem;
 }
 

@@ -16,6 +16,36 @@ const { WebSocketServer } = require("ws");
 const path = require("path");
 const os = require("os");
 
+// =============================================================================
+// LOGGING — horodatage + types differencies
+// =============================================================================
+
+const C = {
+  reset:  "\x1b[0m",
+  dim:    "\x1b[2m",
+  bold:   "\x1b[1m",
+  green:  "\x1b[32m",
+  cyan:   "\x1b[36m",
+  yellow: "\x1b[33m",
+  red:    "\x1b[31m",
+  blue:   "\x1b[34m",
+  magenta:"\x1b[35m",
+  gray:   "\x1b[90m",
+};
+
+function ts() {
+  return C.dim + new Date().toLocaleTimeString("fr-FR", { hour12: false }) + C.reset;
+}
+
+const log = {
+  connect: (msg) => console.log(`${ts()} ${C.green}[+]${C.reset} ${msg}`),
+  disconnect:(msg)=> console.log(`${ts()} ${C.gray}[-]${C.reset} ${msg}`),
+  pixel:   (msg) => console.log(`${ts()} ${C.cyan}[•]${C.reset} ${msg}`),
+  team:    (msg) => console.log(`${ts()} ${C.yellow}[T]${C.reset} ${msg}`),
+  error:   (msg) => console.log(`${ts()} ${C.red}[!]${C.reset} ${msg}`),
+  info:    (msg) => console.log(`${ts()} ${C.blue}[i]${C.reset} ${msg}`),
+};
+
 const app = express();
 const http = createServer(app);
 const wss = new WebSocketServer({ server: http });
@@ -249,11 +279,11 @@ function removePlayerFromTeam(playerId, teamId) {
   if (!team) return;
   team.members = team.members.filter((id) => id !== playerId);
   if (team.members.length === 0) {
-    console.log(`Equipe "${team.name}" supprimee (vide)`);
+    log.team(`Equipe "${team.name}" supprimee (vide)`);
     delete teams[teamId];
   } else if (team.creatorId === playerId) {
     team.creatorId = team.members[0];
-    console.log(`Nouveau createur de "${team.name}": ${players[team.members[0]]?.pseudo}`);
+    log.team(`Nouveau createur de "${team.name}": ${players[team.members[0]]?.pseudo}`);
   }
 }
 
@@ -262,7 +292,7 @@ function removePlayerFromTeam(playerId, teamId) {
 // =============================================================================
 
 wss.on("connection", (ws) => {
-  console.log("Nouvelle connexion WebSocket");
+  log.connect("Nouvelle connexion WebSocket");
 
   send(ws, "init", {
     canvas,
@@ -289,7 +319,7 @@ wss.on("connection", (ws) => {
         connectedAt: Date.now(), lastActivity: Date.now(), active: true,
       };
       ws._playerId = playerId;
-      console.log(`${pseudo} a rejoint (ID: ${playerId})`);
+      log.connect(`${pseudo} a rejoint (ID: ${playerId})`);
 
       send(ws, "joined", {
         playerId, pseudo, teamId: null,
@@ -307,7 +337,7 @@ wss.on("connection", (ws) => {
         ws._playerId = playerId;
         players[playerId].active = true;
         players[playerId].lastActivity = Date.now();
-        console.log(`${players[playerId].pseudo} s'est reconnecte (ID: ${playerId})`);
+        log.connect(`${players[playerId].pseudo} s'est reconnecte (ID: ${playerId})`);
 
         send(ws, "joined", {
           playerId, pseudo: players[playerId].pseudo,
@@ -357,7 +387,7 @@ wss.on("connection", (ws) => {
       updatePlayerActivity(playerId);
       pixelHistory.push({ playerId, x, y, color, timestamp: Date.now() });
 
-      console.log(`${player.pseudo} a pose un pixel en (${x},${y}) couleur ${color}`);
+      log.pixel(`${player.pseudo}  (${x},${y})  ${color}`);
       send(ws, "pixelPlaced", { x, y, color, cooldown, nextPlacement: Date.now() + cooldown });
       broadcastPixelUpdate(x, y, color, playerId);
       broadcastLeaderboard();
@@ -388,7 +418,7 @@ wss.on("connection", (ws) => {
       };
       player.teamId = teamId;
       updatePlayerActivity(playerId);
-      console.log(`${player.pseudo} a cree l'equipe "${name}" (ID: ${teamId})`);
+      log.team(`${player.pseudo} a cree "${name}" (ID: ${teamId})`);
 
       send(ws, "teamJoined", { teamId, team: getTeamsPublicData()[teamId] });
       broadcast("teamsUpdate", getTeamsPublicData());
@@ -410,7 +440,7 @@ wss.on("connection", (ws) => {
       teams[teamId].members.push(playerId);
       player.teamId = teamId;
       updatePlayerActivity(playerId);
-      console.log(`${player.pseudo} a rejoint l'equipe "${teams[teamId].name}"`);
+      log.team(`${player.pseudo} a rejoint "${teams[teamId].name}"`);
 
       send(ws, "teamJoined", { teamId, team: getTeamsPublicData()[teamId] });
       broadcast("teamsUpdate", getTeamsPublicData());
@@ -426,7 +456,7 @@ wss.on("connection", (ws) => {
       const teamName = teams[player.teamId].name;
       removePlayerFromTeam(playerId, player.teamId);
       player.teamId = null;
-      console.log(`${player.pseudo} a quitte l'equipe "${teamName}"`);
+      log.team(`${player.pseudo} a quitte "${teamName}"`);
 
       send(ws, "teamLeft", {});
       broadcast("teamsUpdate", getTeamsPublicData());
@@ -452,7 +482,7 @@ wss.on("connection", (ws) => {
       team.members = team.members.filter((id) => id !== targetId);
       if (players[targetId]) players[targetId].teamId = null;
 
-      console.log(`${player.pseudo} a exclu ${players[targetId]?.pseudo || targetId} de "${team.name}"`);
+      log.team(`${player.pseudo} a exclu ${players[targetId]?.pseudo || targetId} de "${team.name}"`);
 
       // Notifier le joueur kick
       wss.clients.forEach((client) => {
@@ -536,7 +566,7 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     const playerId = ws._playerId;
     if (playerId && players[playerId]) {
-      console.log(`${players[playerId].pseudo} deconnecte (ID conserve: ${playerId})`);
+      log.disconnect(`${players[playerId].pseudo} deconnecte (ID: ${playerId})`);
     }
   });
 });
@@ -559,19 +589,20 @@ http.listen(PORT, () => {
       if (net.family === "IPv4" && !net.internal) { localIP = net.address; break; }
     }
   }
+  const b = C.bold, r = C.reset, g = C.green, c = C.cyan, y = C.yellow, d = C.dim;
   console.log("");
-  console.log("===========================================");
-  console.log("  🎨 PIXEL WAR — SERVEUR DEMARRE !");
-  console.log("===========================================");
+  console.log(`${b}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${r}`);
+  console.log(`${b}  r/design — SERVEUR DEMARRE !${r}`);
+  console.log(`${b}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${r}`);
   console.log("");
-  console.log(`  Ecran de jeu : http://${localIP}:${PORT}/game`);
-  console.log(`  Controller   : http://${localIP}:${PORT}/controller`);
+  console.log(`  ${g}Ecran de jeu${r}  http://${localIP}:${PORT}/game`);
+  console.log(`  ${c}Controller  ${r}  http://${localIP}:${PORT}/controller`);
   console.log("");
-  console.log(`  Canvas : ${CANVAS_WIDTH}x${CANVAS_HEIGHT} pixels (blanc)`);
-  console.log(`  Cooldown : ${DEFAULT_COOLDOWN / 1000}s (dynamique)`);
-  console.log(`  Palette : ${COLOR_PALETTE.length} couleurs`);
+  console.log(`  ${d}Canvas   : ${CANVAS_WIDTH}×${CANVAS_HEIGHT} px${r}`);
+  console.log(`  ${d}Cooldown : ${DEFAULT_COOLDOWN / 1000}s${r}`);
+  console.log(`  ${d}Palette  : ${COLOR_PALETTE.length} couleurs${r}`);
   console.log("");
-  console.log("  (Partagez le lien controller aux joueurs)");
-  console.log("===========================================");
+  console.log(`  ${y}Legende : [+] connexion  [-] deconnexion  [•] pixel  [T] equipe${r}`);
+  console.log(`${b}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${r}`);
   console.log("");
 });

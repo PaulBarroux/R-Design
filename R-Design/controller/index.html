@@ -12,20 +12,29 @@
          ECRAN 1 : Rejoindre / Se reconnecter
          ================================================================ -->
     <div id="screen-join" class="screen">
-      <h1>🎨 Pixel War</h1>
+      <div class="hero-blocks" aria-hidden="true">
+        <div class="block block-red"></div>
+        <div class="block block-cyan"></div>
+        <div class="block block-green"></div>
+        <div class="block block-blue"></div>
+        <div class="block block-yellow"></div>
+        <div class="block block-orange"></div>
+      </div>
+
+      <h1 class="app-title">r/design</h1>
 
       <div class="form">
         <!-- Nouveau compte -->
         <label for="pseudo">Pseudo</label>
-        <input type="text" id="pseudo" placeholder="Ton pseudo..." maxlength="16" autocomplete="off" />
-        <button id="btn-join" class="btn-primary">Rejoindre</button>
+        <input type="text" id="pseudo" class="input-filled" placeholder="Ton pseudo..." maxlength="16" autocomplete="off" />
+        <button id="btn-join" class="btn-black">Rejoindre</button>
 
-        <div class="separator">ou</div>
+        <div class="separator-line"></div>
 
         <!-- Reconnexion -->
-        <label for="reconnect-id">Se reconnecter avec mon ID</label>
-        <input type="text" id="reconnect-id" placeholder="Ex: AB3K9" maxlength="5" autocomplete="off" />
-        <button id="btn-reconnect" class="btn-secondary">Reconnecter</button>
+        <label for="reconnect-id">Se reconnecter avec l'ID</label>
+        <input type="text" id="reconnect-id" class="input-outlined" placeholder="EX : AB3K9" maxlength="5" autocomplete="off" />
+        <button id="btn-reconnect" class="btn-outlined">Se reconnecter</button>
 
         <!-- Message d'erreur in-game (pas d'alert native) -->
         <div id="join-error" class="error-msg hidden"></div>
@@ -36,15 +45,25 @@
          ECRAN 1b : ID reveal — Affiche l'ID apres creation
          ================================================================ -->
     <div id="screen-id-reveal" class="screen hidden">
-      <h1>🎉 Bienvenue !</h1>
+      <div class="hero-blocks" aria-hidden="true">
+        <div class="block block-red"></div>
+        <div class="block block-cyan"></div>
+        <div class="block block-green"></div>
+        <div class="block block-blue"></div>
+        <div class="block block-yellow"></div>
+        <div class="block block-orange"></div>
+      </div>
+
+      <h1 class="app-title">r/design</h1>
+
       <p class="subtitle">Voici ton identifiant unique :</p>
       <div id="reveal-id" class="big-id">-----</div>
-      <p class="subtitle muted">Note-le bien ! Il te permettra de te reconnecter.</p>
+      <p class="subtitle"><strong>Note-le bien</strong> ! Il te permettra de te reconnecter quand tu veux.</p>
       <div class="id-actions">
         <button id="btn-copy-id" class="btn-copy">Copier l'ID</button>
         <a id="btn-sms-id" class="btn-sms" href="#">Envoyer par SMS</a>
       </div>
-      <button id="btn-continue" class="btn-primary">C'est note, continuer</button>
+      <button id="btn-continue" class="btn-black">Continuer</button>
     </div>
 
     <!-- ================================================================
@@ -52,28 +71,33 @@
          ================================================================ -->
     <div id="screen-game" class="screen hidden">
 
-      <!-- Barre d'info joueur (toujours en haut) -->
-      <div class="player-bar">
-        <span id="display-pseudo">—</span>
-        <span id="display-id" class="player-id" title="Copier l'ID">—</span>
-        <span id="display-team" class="badge"><span id="display-team-dot" class="badge-dot hidden"></span><span id="display-team-text">Solo</span></span>
+      <!-- Header fixe (pseudo, tabs, erreur) -->
+      <div id="game-header" class="game-header">
+        <div class="player-bar">
+          <div class="player-left">
+            <span id="display-pseudo">—</span>
+            <span id="display-id" class="player-id" title="Copier l'ID">—</span>
+          </div>
+          <!-- Timer toujours visible -->
+          <div id="cooldown-bar">
+            <div id="cooldown-fill"></div>
+            <span id="cooldown-text">Prêt !</span>
+          </div>
+          <span id="display-team" class="badge"><span id="display-team-dot" class="badge-dot hidden"></span><span id="display-team-text">Solo</span></span>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="canvas">Canva</button>
+          <button class="tab" data-tab="team">&Eacute;quipe</button>
+        </div>
+        <div id="game-error" class="error-msg hidden"></div>
       </div>
-
-      <!-- Tabs (toujours en dessous de la barre joueur) -->
-      <div class="tabs">
-        <button class="tab active" data-tab="canvas">Canvas</button>
-        <button class="tab" data-tab="team">Equipe</button>
-      </div>
-
-      <!-- Message d'erreur in-game -->
-      <div id="game-error" class="error-msg hidden"></div>
 
       <!-- ============================================================
-           ONGLET CANVAS
+           ONGLET CANVAS — canvas full screen + bottom sheet
            ============================================================ -->
       <div id="tab-canvas" class="tab-content">
 
-        <!-- Canvas avec zoom/pan -->
+        <!-- Canvas avec zoom/pan (prend tout l'espace disponible) -->
         <div id="canvas-container">
           <div id="canvas-viewport">
             <canvas id="pixel-canvas"></canvas>
@@ -84,49 +108,53 @@
           </div>
         </div>
 
-        <!-- Barre d'edition overlay (visible uniquement en mode edition) -->
-        <div id="overlay-edit-bar" class="overlay-edit-bar hidden">
-          <div class="overlay-edit-scale">
-            <button id="btn-overlay-scale-down" class="ctrl-btn">−</button>
-            <span class="overlay-edit-label">Taille</span>
-            <button id="btn-overlay-scale-up" class="ctrl-btn">+</button>
-          </div>
-          <div class="overlay-edit-opacity">
-            <span class="overlay-edit-label">Opacite</span>
-            <input type="range" id="overlay-opacity-slider" min="5" max="90" value="50" />
-          </div>
-          <div class="overlay-edit-actions">
-            <button id="btn-overlay-cancel" class="btn-secondary">Annuler</button>
-            <button id="btn-overlay-confirm" class="btn-primary">Confirmer</button>
-          </div>
-        </div>
+        <!-- Bottom sheet : tous les controles -->
+        <div id="bottom-sheet" class="bottom-sheet">
+          <div class="sheet-handle"></div>
 
-        <!-- Controles de zoom + coordonnees -->
-        <div class="canvas-controls">
-          <button id="btn-zoom-out" class="ctrl-btn">−</button>
-          <span id="zoom-level">1x</span>
-          <button id="btn-zoom-in" class="ctrl-btn">+</button>
-          <span class="spacer"></span>
-          <button id="btn-toggle-overlay" class="ctrl-btn hidden" title="Afficher/masquer l'overlay">👁</button>
-          <div class="pixel-info">
-            <span id="coords-text">—</span>
-            <span id="pixel-placer-text" class="pixel-placer hidden"></span>
+          <!-- Barre d'edition overlay (visible uniquement en mode edition) -->
+          <div id="overlay-edit-bar" class="overlay-edit-bar hidden">
+            <div class="overlay-edit-scale">
+              <button id="btn-overlay-scale-down" class="ctrl-btn">−</button>
+              <span class="overlay-edit-label">Taille</span>
+              <button id="btn-overlay-scale-up" class="ctrl-btn">+</button>
+            </div>
+            <div class="overlay-edit-opacity">
+              <span class="overlay-edit-label">Opacite</span>
+              <input type="range" id="overlay-opacity-slider" min="5" max="90" value="50" />
+            </div>
+            <div class="overlay-edit-actions">
+              <button id="btn-overlay-cancel" class="btn-secondary">Annuler</button>
+              <button id="btn-overlay-confirm" class="btn-primary">Confirmer</button>
+            </div>
           </div>
-        </div>
 
-        <!-- Palette de couleurs -->
-        <div id="palette"></div>
+          <!-- Controles de zoom + coordonnees + opacite overlay membre -->
+          <div class="canvas-controls">
+            <button id="btn-zoom-out" class="ctrl-btn">−</button>
+            <span id="zoom-level">1x</span>
+            <button id="btn-zoom-in" class="ctrl-btn">+</button>
+            <span class="spacer"></span>
+            <div id="member-overlay-controls" class="member-overlay-controls hidden">
+              <button id="btn-toggle-overlay" class="ctrl-btn" title="Afficher/masquer l'overlay">👁</button>
+              <input type="range" id="member-opacity-slider" class="member-opacity-slider" min="5" max="100" value="50" title="Opacite du template" />
+            </div>
+            <div class="pixel-info">
+              <span id="coords-text">—</span>
+              <span id="pixel-placer-text" class="pixel-placer hidden"></span>
+            </div>
+          </div>
 
-        <!-- Bouton de confirmation -->
-        <button id="btn-confirm-pixel" class="btn-confirm hidden" disabled>
-          Selectionne un pixel
-        </button>
+          <!-- Palette de couleurs -->
+          <span class="sheet-section-label">Couleurs</span>
+          <div id="palette"></div>
 
-        <!-- Cooldown -->
-        <div id="cooldown-bar">
-          <div id="cooldown-fill"></div>
-          <span id="cooldown-text">Pret !</span>
-        </div>
+          <!-- Bouton de confirmation -->
+          <button id="btn-confirm-pixel" class="btn-confirm" disabled>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2" transform="rotate(45 12 12)"/></svg>Poser
+          </button>
+
+        </div><!-- /bottom-sheet -->
       </div>
 
       <!-- ============================================================

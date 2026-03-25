@@ -48,6 +48,8 @@ const btnZoomIn = document.getElementById("btn-zoom-in");
 const btnZoomOut = document.getElementById("btn-zoom-out");
 const zoomLevelEl = document.getElementById("zoom-level");
 const btnToggleOverlay = document.getElementById("btn-toggle-overlay");
+const memberOverlayControls = document.getElementById("member-overlay-controls");
+const memberOpacitySlider = document.getElementById("member-opacity-slider");
 
 // Overlay
 const overlayImg = document.getElementById("overlay-img");
@@ -70,6 +72,8 @@ const overlayPreviewRow = document.getElementById("overlay-preview-row");
 const overlayThumbnail = document.getElementById("overlay-thumbnail");
 const btnOverlayAdd = document.getElementById("btn-overlay-add");
 const btnOverlayDelete = document.getElementById("btn-overlay-delete");
+const bottomSheet = document.getElementById("bottom-sheet");
+const sheetHandleEl = document.querySelector(".sheet-handle");
 
 // Palette & confirm
 const paletteEl = document.getElementById("palette");
@@ -125,18 +129,24 @@ let selectedTeamColor = "#3690EA";
 let detailTeamId = null;
 
 // Overlay state
-let overlayVisible = true;       // toggle local (membre)
-let overlayEditMode = false;     // leader en train d'editer
-let overlayDraft = null;         // { imageData, x, y, scale, opacity } pendant edition
-let overlayConfirmed = null;     // dernier etat confirme (pour annulation)
+let overlayVisible = true;         // toggle local (membre)
+let overlayEditMode = false;       // leader en train d'editer
+let overlayDraft = null;           // { imageData, x, y, scale, opacity } pendant edition
+let overlayConfirmed = null;       // dernier etat confirme (pour annulation)
 let isCreator = false;
+let localOverlayOpacity = null;    // opacite locale du membre (null = utiliser celle du serveur)
 
 // Zoom/pan state
 let zoomLevel = 1;
 let panX = 0;
 let panY = 0;
-let MIN_ZOOM = 1; // recalcule dynamiquement (entier) pour que le canvas remplisse le container
+let MIN_ZOOM = 1;          // zoom minimum reel (avec bordure blanche)
+let CANVAS_FILL_ZOOM = 1;  // zoom ou le canvas touche les bords de l'ecran (reference "1x")
 const MAX_ZOOM = 20;
+
+// Bordure blanche autour du canvas (en CSS pixels, fixe quel que soit le zoom)
+const CANVAS_PAD_H = 100;        // gauche, droite, haut
+const CANVAS_PAD_BOTTOM = 200;   // bas (pour acceder aux pixels sous la sheet)
 
 // =============================================================================
 // LOCAL STORAGE — AUTO-RECONNEXION
@@ -145,10 +155,9 @@ const MAX_ZOOM = 20;
 const savedId = localStorage.getItem("pixelwar_playerId");
 if (savedId) {
   reconnectInput.value = savedId;
-  // Activer le style "primary" sur le bouton reconnect
-  btnReconnect.classList.add("highlight");
-  btnReconnect.classList.remove("btn-secondary");
-  btnReconnect.classList.add("btn-primary");
+  // Activer le style rempli sur le bouton reconnect
+  btnReconnect.classList.remove("btn-outlined");
+  btnReconnect.classList.add("btn-black");
 }
 
 // =============================================================================
@@ -158,13 +167,11 @@ if (savedId) {
 reconnectInput.addEventListener("input", () => {
   const val = reconnectInput.value.trim();
   if (val.length === 5) {
-    btnReconnect.classList.add("highlight");
-    btnReconnect.classList.remove("btn-secondary");
-    btnReconnect.classList.add("btn-primary");
+    btnReconnect.classList.remove("btn-outlined");
+    btnReconnect.classList.add("btn-black");
   } else {
-    btnReconnect.classList.remove("highlight");
-    btnReconnect.classList.remove("btn-primary");
-    btnReconnect.classList.add("btn-secondary");
+    btnReconnect.classList.remove("btn-black");
+    btnReconnect.classList.add("btn-outlined");
   }
   // Reset error
   joinError.classList.add("hidden");
@@ -238,6 +245,7 @@ reconnectInput.addEventListener("keydown", (e) => { if (e.key === "Enter") btnRe
 btnContinue.addEventListener("click", () => {
   screenIdReveal.classList.add("hidden");
   screenGame.classList.remove("hidden");
+  initFillZoom();
 });
 
 // Copie universelle (fonctionne sans HTTPS)
@@ -342,45 +350,88 @@ function updatePixel(x, y, color) {
 // CANVAS — ZOOM & PAN
 // =============================================================================
 
+let zoomInitialized = false;
+
+// A appeler la premiere fois que l'ecran de jeu est affiche
+function initFillZoom() {
+  if (!zoomInitialized) {
+    zoomInitialized = true;
+    updateViewport();          // calcule CANVAS_FILL_ZOOM avec les vraies dimensions
+    zoomLevel = CANVAS_FILL_ZOOM;
+  }
+  updateViewport();
+}
+
 function updateViewport() {
   const containerRect = canvasContainer.getBoundingClientRect();
-  const containerSize = containerRect.width;
+  const cw = containerRect.width;
+  const ch = containerRect.height;
+  // Ecran cache → dimensions nulles, on ne calcule rien
+  if (!cw || !ch) return;
 
-  // Zoom minimum exact : le canvas remplit pile le container, maxPan = 0
-  MIN_ZOOM = containerSize / canvasSize.width;
+  // Hauteur de la sheet (tenant compte de son translateY actuel si collapsed)
+  const sheetMatrix = new DOMMatrix(getComputedStyle(bottomSheet).transform);
+  const sheetTranslateY = sheetMatrix.m42 || 0;
+  const sheetVisibleH = Math.max(0, bottomSheet.offsetHeight - sheetTranslateY);
+
+  // Padding bas dynamique : assez grand pour que le bas du canvas remonte
+  // au-dessus de la sheet quand on pan au maximum.
+  // +8 : marge CSS bottom de la sheet ; +16 : clearance visuelle au-dessus de la sheet
+  const SHEET_CLEARANCE = 24;
+  const padBottom = Math.max(CANVAS_PAD_BOTTOM, sheetVisibleH + SHEET_CLEARANCE + 40);
+
+  // Zoom ou le canvas touche exactement les bords (reference "1x" affiche)
+  CANVAS_FILL_ZOOM = Math.min(cw / canvasSize.width, ch / canvasSize.height);
+
+  // Zoom minimum reel : canvas + bordure tient dans le container
+  const minZoomX = (cw - CANVAS_PAD_H * 2)          / canvasSize.width;
+  const minZoomY = (ch - CANVAS_PAD_H - padBottom)   / canvasSize.height;
+  MIN_ZOOM = Math.max(0.1, Math.min(minZoomX, minZoomY));
   if (zoomLevel < MIN_ZOOM) zoomLevel = MIN_ZOOM;
 
-  // La taille du canvas dans le viewport
-  const scaledSize = canvasSize.width * zoomLevel;
+  const scaledW = canvasSize.width  * zoomLevel;
+  const scaledH = canvasSize.height * zoomLevel;
 
-  canvasEl.style.width = scaledSize + "px";
-  canvasEl.style.height = scaledSize + "px";
+  // Taille totale du monde (canvas + bordures blanches)
+  const worldW = scaledW + CANVAS_PAD_H * 2;
+  const worldH = scaledH + CANVAS_PAD_H + padBottom;
 
-  canvasViewport.style.width = scaledSize + "px";
-  canvasViewport.style.height = scaledSize + "px";
+  canvasViewport.style.width  = worldW + "px";
+  canvasViewport.style.height = worldH + "px";
 
-  // Limiter le pan
-  const maxPan = Math.max(0, scaledSize - containerSize);
-  panX = Math.max(0, Math.min(panX, maxPan));
-  panY = Math.max(0, Math.min(panY, maxPan));
+  // Positionner le canvas dans le monde (offset = bordure)
+  canvasEl.style.left   = CANVAS_PAD_H + "px";
+  canvasEl.style.top    = CANVAS_PAD_H + "px";
+  canvasEl.style.width  = scaledW + "px";
+  canvasEl.style.height = scaledH + "px";
+
+  // maxPanY : le bas du canvas doit apparaitre AVANT le bord de la sheet
+  // (8px = marge CSS bottom de la sheet, 16px = clearance visuelle)
+  const visibleH = ch - sheetVisibleH - SHEET_CLEARANCE;
+  const maxPanX = Math.max(0, worldW - cw);
+  const maxPanY = Math.max(0, CANVAS_PAD_H + scaledH - visibleH);
+  panX = Math.max(0, Math.min(panX, maxPanX));
+  panY = Math.max(0, Math.min(panY, maxPanY));
 
   canvasViewport.style.transform = `translate(${-panX}px, ${-panY}px)`;
-  const displayZoom = Math.round(zoomLevel / MIN_ZOOM);
-  zoomLevelEl.textContent = `${displayZoom}x`;
 
-  // Mettre a jour le curseur de selection
+  // Affichage : 1x = canvas bord a bord, valeurs decimales en dessous
+  const ratio = zoomLevel / CANVAS_FILL_ZOOM;
+  const displayZoom = ratio >= 1
+    ? Math.round(ratio) + "x"
+    : (Math.round(ratio * 10) / 10) + "x";
+  zoomLevelEl.textContent = displayZoom;
+
   updatePixelCursor();
-  // Recalculer la position de l'overlay apres changement de zoom/pan
   refreshOverlayTransform();
 }
 
 function getZoomFocus() {
-  // Zoom vers le pixel selectionne, sinon vers le centre du viewport
   const containerRect = canvasContainer.getBoundingClientRect();
   if (selectedPixel) {
     return {
-      focusX: (selectedPixel.x + 0.5) * zoomLevel,
-      focusY: (selectedPixel.y + 0.5) * zoomLevel,
+      focusX: CANVAS_PAD_H + (selectedPixel.x + 0.5) * zoomLevel,
+      focusY: CANVAS_PAD_H + (selectedPixel.y + 0.5) * zoomLevel,
       anchorX: containerRect.width / 2,
       anchorY: containerRect.height / 2,
     };
@@ -397,8 +448,8 @@ btnZoomIn.addEventListener("click", () => {
   if (zoomLevel < MAX_ZOOM) {
     const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
     const oldZoom = zoomLevel;
-    const currentDisplay = Math.round(zoomLevel / MIN_ZOOM);
-    zoomLevel = Math.min(MAX_ZOOM, MIN_ZOOM * (currentDisplay + 1));
+    const currentSteps = Math.round(zoomLevel / CANVAS_FILL_ZOOM);
+    zoomLevel = Math.min(MAX_ZOOM, CANVAS_FILL_ZOOM * (currentSteps + 1));
     panX = focusX * (zoomLevel / oldZoom) - anchorX;
     panY = focusY * (zoomLevel / oldZoom) - anchorY;
     updateViewport();
@@ -409,8 +460,11 @@ btnZoomOut.addEventListener("click", () => {
   if (zoomLevel > MIN_ZOOM) {
     const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
     const oldZoom = zoomLevel;
-    const currentDisplay = Math.round(zoomLevel / MIN_ZOOM);
-    zoomLevel = Math.max(MIN_ZOOM, MIN_ZOOM * (currentDisplay - 1));
+    const currentSteps = Math.round(zoomLevel / CANVAS_FILL_ZOOM);
+    // En dessous de 1x : revenir directement au zoom minimum
+    zoomLevel = currentSteps > 1
+      ? Math.max(MIN_ZOOM, CANVAS_FILL_ZOOM * (currentSteps - 1))
+      : MIN_ZOOM;
     panX = focusX * (zoomLevel / oldZoom) - anchorX;
     panY = focusY * (zoomLevel / oldZoom) - anchorY;
     updateViewport();
@@ -499,8 +553,9 @@ function handlePixelClick(e) {
   const clickX = e.clientX - rect.left + panX;
   const clickY = e.clientY - rect.top + panY;
 
-  const pixelX = Math.floor(clickX / zoomLevel);
-  const pixelY = Math.floor(clickY / zoomLevel);
+  // Soustraire la bordure blanche pour obtenir les coordonnees canvas
+  const pixelX = Math.floor((clickX - CANVAS_PAD_H) / zoomLevel);
+  const pixelY = Math.floor((clickY - CANVAS_PAD_H) / zoomLevel);
 
   if (pixelX >= 0 && pixelX < canvasSize.width && pixelY >= 0 && pixelY < canvasSize.height) {
     selectedPixel = { x: pixelX, y: pixelY };
@@ -521,8 +576,8 @@ function updatePixelCursor() {
   const size = zoomLevel;
   pixelCursor.style.width = size + "px";
   pixelCursor.style.height = size + "px";
-  pixelCursor.style.left = selectedPixel.x * zoomLevel + "px";
-  pixelCursor.style.top = selectedPixel.y * zoomLevel + "px";
+  pixelCursor.style.left = CANVAS_PAD_H + selectedPixel.x * zoomLevel + "px";
+  pixelCursor.style.top  = CANVAS_PAD_H + selectedPixel.y * zoomLevel + "px";
 
   // Colorer le curseur avec la couleur selectionnee
   if (selectedColor) {
@@ -532,30 +587,24 @@ function updatePixelCursor() {
   }
 }
 
+const CONFIRM_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2" transform="rotate(45 12 12)"/></svg>';
+
 function updateConfirmButton() {
   if (selectedPixel && selectedColor) {
-    btnConfirmPixel.classList.remove("hidden");
     btnConfirmPixel.disabled = false;
-    btnConfirmPixel.textContent = `Placer en (${selectedPixel.x}, ${selectedPixel.y})`;
-    btnConfirmPixel.style.background = selectedColor;
-    // Texte noir ou blanc selon la luminosite de la couleur
-    const r = parseInt(selectedColor.slice(1, 3), 16);
-    const g = parseInt(selectedColor.slice(3, 5), 16);
-    const b = parseInt(selectedColor.slice(5, 7), 16);
-    const lum = (r * 299 + g * 587 + b * 114) / 1000;
-    btnConfirmPixel.style.color = lum > 150 ? "#000" : "#fff";
+    btnConfirmPixel.innerHTML = CONFIRM_ICON + "Poser ici";
+    btnConfirmPixel.style.background = "#000";
+    btnConfirmPixel.style.color = "#fff";
   } else if (selectedPixel) {
-    btnConfirmPixel.classList.remove("hidden");
     btnConfirmPixel.disabled = true;
-    btnConfirmPixel.textContent = "Choisis une couleur";
-    btnConfirmPixel.style.background = "#555";
-    btnConfirmPixel.style.color = "#fff";
+    btnConfirmPixel.innerHTML = CONFIRM_ICON + "Choisis une couleur";
+    btnConfirmPixel.style.background = "";
+    btnConfirmPixel.style.color = "";
   } else {
-    btnConfirmPixel.classList.remove("hidden");
     btnConfirmPixel.disabled = true;
-    btnConfirmPixel.textContent = "Selectionne un pixel";
-    btnConfirmPixel.style.background = "#555";
-    btnConfirmPixel.style.color = "#fff";
+    btnConfirmPixel.innerHTML = CONFIRM_ICON + "Poser";
+    btnConfirmPixel.style.background = "";
+    btnConfirmPixel.style.color = "";
   }
 }
 
@@ -587,11 +636,12 @@ function startCooldown(endTime, duration) {
       clearInterval(cooldownInterval);
       cooldownFill.style.width = "100%";
       cooldownBar.classList.add("ready");
-      cooldownText.textContent = "Pret !";
+      cooldownText.textContent = "Prêt !";
       return;
     }
     cooldownFill.style.width = `${(1 - remaining / cooldownDuration) * 100}%`;
-    cooldownText.textContent = `${Math.ceil(remaining / 1000)}s`;
+    const secs = Math.ceil(remaining / 1000);
+    cooldownText.textContent = `${secs}s`;
   }, 200);
 }
 
@@ -787,15 +837,18 @@ function updateTeamUI() {
     displayTeam.style.color = "#888";
   }
 
-  // Bouton toggle overlay : visible si on est dans une equipe avec un overlay
+  // Controles overlay : visibles si on est dans une equipe avec un overlay
   const teamOverlay = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
-  btnToggleOverlay.classList.toggle("hidden", !teamOverlay);
+  memberOverlayControls.classList.toggle("hidden", !teamOverlay);
+  if (teamOverlay && localOverlayOpacity === null) {
+    memberOpacitySlider.value = Math.round((teamOverlay.opacity || 0.5) * 100);
+  }
 
   // Rafraichir l'overlay affiche
   if (!overlayEditMode) renderOverlay(teamOverlay);
 
-  // Rafraichir le detail si ouvert
-  if (detailTeamId && allTeams[detailTeamId]) {
+  // Rafraichir le detail si ouvert et visible (ne pas le rouvrir si on est en mode edition overlay)
+  if (detailTeamId && allTeams[detailTeamId] && !tabTeamDetail.classList.contains("hidden")) {
     showTeamDetail(detailTeamId);
   }
 }
@@ -814,7 +867,7 @@ ws.addEventListener("message", (event) => {
     buildPalette(data.palette);
     allTeams = data.teams;
     renderTeamsList(data.teams);
-    updateViewport();
+    updateViewport(); // no-op si l'ecran est encore cache
 
     // Auto-reconnexion si on a un ID sauvegarde
     if (savedId && !playerId) {
@@ -841,7 +894,7 @@ ws.addEventListener("message", (event) => {
 
     // Cooldown pret
     cooldownBar.classList.add("ready");
-    cooldownText.textContent = "Pret !";
+    cooldownText.textContent = "Prêt !";
     cooldownFill.style.width = "100%";
 
     // Si c'est un nouveau joueur (pas une reconnexion), montrer l'ecran ID
@@ -850,12 +903,14 @@ ws.addEventListener("message", (event) => {
       screenJoin.classList.add("hidden");
       screenIdReveal.classList.add("hidden");
       screenGame.classList.remove("hidden");
+      initFillZoom();
     } else if (reconnectInput.value.trim().toUpperCase() === data.playerId) {
       // C'est une reconnexion → direct au jeu
       screenJoin.classList.add("hidden");
       screenGame.classList.remove("hidden");
+      initFillZoom();
     } else {
-      // Nouveau joueur → montrer l'ID
+      // Nouveau joueur → montrer l'ID (le zoom sera init au clic sur "Continuer")
       revealId.textContent = data.playerId;
       // Lien SMS avec l'ID pre-rempli
       const smsBody = encodeURIComponent(`Mon ID Pixel War : ${data.playerId}`);
@@ -863,8 +918,6 @@ ws.addEventListener("message", (event) => {
       screenJoin.classList.add("hidden");
       screenIdReveal.classList.remove("hidden");
     }
-
-    updateViewport();
   }
 
   // --- Erreur de join/reconnexion (in-game) ---
@@ -996,11 +1049,15 @@ function applyOverlayTransform(data) {
   const targetW = canvasW * data.scale * pixelSize;
   const ratio = targetW / imgNaturalW;
 
-  const tx = data.x * pixelSize;
-  const ty = data.y * pixelSize;
+  const tx = CANVAS_PAD_H + data.x * pixelSize;
+  const ty = CANVAS_PAD_H + data.y * pixelSize;
 
   overlayImg.style.transform = `translate(${tx}px, ${ty}px) scale(${ratio})`;
-  overlayImg.style.opacity = data.opacity;
+  // Opacite : locale (membre) si definie, sinon celle du serveur (leader)
+  const opacity = (localOverlayOpacity !== null && !overlayEditMode)
+    ? localOverlayOpacity
+    : data.opacity;
+  overlayImg.style.opacity = opacity;
 }
 
 // Recalculer la transform quand le zoom change (appelé depuis updateViewport)
@@ -1016,8 +1073,16 @@ function refreshOverlayTransform() {
 btnToggleOverlay.addEventListener("click", () => {
   overlayVisible = !overlayVisible;
   btnToggleOverlay.style.opacity = overlayVisible ? "1" : "0.4";
+  memberOpacitySlider.style.opacity = overlayVisible ? "1" : "0.4";
   const current = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
   renderOverlay(current);
+});
+
+// Opacite locale du template (pour les membres)
+memberOpacitySlider.addEventListener("input", () => {
+  localOverlayOpacity = memberOpacitySlider.value / 100;
+  const current = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
+  if (current) applyOverlayTransform(current);
 });
 
 // =============================================================================
@@ -1048,7 +1113,8 @@ function enterOverlayEditMode() {
   overlayEditMode = true;
   overlayVisible = true;
 
-  // Basculer sur l'onglet canvas
+  // Basculer sur l'onglet canvas (et oublier le detail d'equipe ouvert)
+  detailTeamId = null;
   tabs.forEach(t => t.classList.remove("active"));
   document.querySelector('.tab[data-tab="canvas"]').classList.add("active");
   tabTeam.classList.add("hidden");
@@ -1352,8 +1418,9 @@ canvasContainer.addEventListener("pointermove", (e) => {
   if (!overlayDragActive || !overlayEditMode) return;
   const dx = (e.clientX - overlayDragStartX) / zoomLevel;
   const dy = (e.clientY - overlayDragStartY) / zoomLevel;
-  overlayDraft.x = overlayDragStartOX + dx;
-  overlayDraft.y = overlayDragStartOY + dy;
+  // Snap sur la grille pixel
+  overlayDraft.x = Math.round(overlayDragStartOX + dx);
+  overlayDraft.y = Math.round(overlayDragStartOY + dy);
   applyOverlayTransform(overlayDraft);
 }, true);
 
@@ -1362,12 +1429,84 @@ canvasContainer.addEventListener("pointerup", () => {
 }, true);
 
 // =============================================================================
+// BOTTOM SHEET — DRAG (poignee)
+// =============================================================================
+
+let sheetDragActive = false;
+let sheetDragStartY = 0;
+let sheetDragStartTranslate = 0;
+let sheetCollapsed = false;
+
+function getSheetMaxTranslate() {
+  // Garder visible : poignee + ligne de zoom (canvas-controls)
+  const controls = bottomSheet.querySelector(".canvas-controls");
+  if (controls) {
+    const visibleH = controls.offsetTop + controls.offsetHeight + 10;
+    return Math.max(0, bottomSheet.offsetHeight - visibleH);
+  }
+  return Math.max(0, bottomSheet.offsetHeight - 60);
+}
+
+function snapSheet(targetY, animate = true) {
+  bottomSheet.style.transition = animate ? "transform 0.32s cubic-bezier(0.32,0.72,0,1)" : "none";
+  bottomSheet.style.transform = `translateY(${targetY}px)`;
+  sheetCollapsed = targetY > 0;
+  // Recalculate pan limits after sheet animation completes
+  if (animate) {
+    setTimeout(updateViewport, 340);
+  } else {
+    updateViewport();
+  }
+}
+
+// Attacher le drag sur la zone de la poignee (les 40px du haut de la sheet)
+bottomSheet.addEventListener("pointerdown", (e) => {
+  const sheetRect = bottomSheet.getBoundingClientRect();
+  const controls = bottomSheet.querySelector(".canvas-controls");
+  const grabZone = controls
+    ? controls.getBoundingClientRect().bottom - sheetRect.top + 4
+    : 64;
+  if (e.clientY - sheetRect.top > grabZone) return; // seulement depuis le haut (handle + zoom row)
+  e.preventDefault();
+  bottomSheet.setPointerCapture(e.pointerId);
+  sheetDragActive = true;
+  sheetDragStartY = e.clientY;
+  // Lire le translateY actuel
+  const matrix = new DOMMatrix(getComputedStyle(bottomSheet).transform);
+  sheetDragStartTranslate = matrix.m42 || 0;
+  bottomSheet.style.transition = "none";
+});
+
+bottomSheet.addEventListener("pointermove", (e) => {
+  if (!sheetDragActive) return;
+  const dy = e.clientY - sheetDragStartY;
+  const newY = Math.max(0, Math.min(getSheetMaxTranslate(), sheetDragStartTranslate + dy));
+  bottomSheet.style.transform = `translateY(${newY}px)`;
+});
+
+bottomSheet.addEventListener("pointerup", (e) => {
+  if (!sheetDragActive) return;
+  sheetDragActive = false;
+  const dy = e.clientY - sheetDragStartY;
+  const maxY = getSheetMaxTranslate();
+  if (sheetCollapsed) {
+    snapSheet(dy < -50 ? 0 : maxY);
+  } else {
+    snapSheet(dy > 60 ? maxY : 0);
+  }
+});
+
+bottomSheet.addEventListener("pointercancel", () => {
+  if (sheetDragActive) {
+    sheetDragActive = false;
+    snapSheet(sheetCollapsed ? getSheetMaxTranslate() : 0);
+  }
+});
+
+// =============================================================================
 // INIT VIEWPORT AU CHARGEMENT
 // =============================================================================
 
 window.addEventListener("load", () => {
-  const containerRect = canvasContainer.getBoundingClientRect();
-  zoomLevel = containerRect.width / canvasSize.width;
-  updateViewport();
   updateConfirmButton();
 });
