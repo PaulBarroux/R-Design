@@ -34,7 +34,11 @@ const C = {
 };
 
 function ts() {
-  return C.dim + new Date().toLocaleTimeString("fr-FR", { hour12: false }) + C.reset;
+  const d = new Date();
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  const s = String(d.getSeconds()).padStart(2, "0");
+  return C.gray + `[${h}:${m}:${s}]` + C.reset;
 }
 
 const log = {
@@ -73,10 +77,11 @@ const DEFAULT_COOLDOWN = 30 * 1000;
 const INACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 min sans action = inactif
 
 const COLOR_PALETTE = [
-  "#FF4500", "#FF0000", "#BE0039", "#FF6D00", "#FFA800",
-  "#FFD635", "#00A368", "#00CC78", "#7EED56", "#009EAA",
-  "#3690EA", "#2450A4", "#493AC1", "#811E9F", "#FF3881",
-  "#FFFFFF", "#D4D7D9", "#898D90", "#515252", "#000000",
+  "#6D011A", "#BE003A", "#FF4500", "#FEA800", "#FED734", "#FFF8B8",
+  "#01A268", "#00CC78", "#7FED56", "#02756F", "#019EAA", "#51E9F4",
+  "#2450A5", "#3690EA", "#94B3FF", "#493AC1", "#6A5DFF", "#821F9F",
+  "#B44BC0", "#DE117F", "#FF3981", "#FF99AA", "#6D482F", "#9D6925",
+  "#FFB470", "#000000", "#515252", "#898D90", "#D5D7D9", "#FFFFFF",
 ];
 
 // =============================================================================

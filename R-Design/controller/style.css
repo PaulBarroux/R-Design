@@ -556,6 +556,12 @@ input:focus { border-color: #222; }
   pointer-events: none;
   z-index: 1;
   max-width: none;
+  image-rendering: pixelated;
+}
+
+.overlay-guide {
+  z-index: 2;
+  opacity: 0.75;
 }
 
 /* Barre d'edition overlay */
@@ -730,7 +736,7 @@ input:focus { border-color: #222; }
   flex-shrink: 0;
 }
 
-/* --- Palette (2 lignes × 10 colonnes) --- */
+/* --- Palette (3 lignes × 10 colonnes) --- */
 #palette {
   display: grid;
   grid-template-columns: repeat(10, 1fr);

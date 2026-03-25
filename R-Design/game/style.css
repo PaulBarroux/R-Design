@@ -4,140 +4,372 @@
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+:root {
+  --red:       #E52222;
+  --red-light: #FFF0F0;
+  --red-mid:   #FFD9D9;
+  --red-dim:   rgba(229, 34, 34, 0.12);
+  --gray:      #888;
+  --border:    #EBEBEB;
+  --bg:        #F5F5F5;
+}
+
 body {
   font-family: "Segoe UI", system-ui, sans-serif;
-  background: #f0f0f5;
+  background: var(--bg);
   color: #222;
   height: 100vh;
   overflow: hidden;
+}
+
+/* ─── LAYOUT ──────────────────────────────────────────────────────────────── */
+
+#page {
+  display: flex;
+  height: 100vh;
+  gap: 20px;
+  padding: 20px;
+  align-items: center;
+}
+
+/* ─── CANVAS ──────────────────────────────────────────────────────────────── */
+
+#canvas-section {
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
+  height: 100%;
 }
-
-/* --- LEADERBOARD --- */
-
-#leaderboard {
-  position: fixed;
-  top: 16px;
-  left: 16px;
-  width: 260px;
-  background: #ffffffcc;
-  backdrop-filter: blur(8px);
-  border-radius: 12px;
-  border: 1px solid #ddd;
-  padding: 12px;
-  z-index: 10;
-}
-
-.leaderboard-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.leaderboard-header h2 { font-size: 0.9rem; font-weight: 700; }
-
-.player-count {
-  font-size: 0.7rem;
-  opacity: 0.5;
-  background: #00000010;
-  padding: 2px 8px;
-  border-radius: 10px;
-}
-
-#leaderboard-list {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.lb-entry {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 6px;
-  border-radius: 6px;
-  font-size: 0.78rem;
-}
-
-.lb-entry:nth-child(-n+3) { background: #00000008; }
-
-.lb-rank {
-  width: 20px;
-  text-align: center;
-  font-weight: 700;
-  opacity: 0.5;
-  font-size: 0.7rem;
-}
-
-.lb-entry:nth-child(1) .lb-rank { opacity: 1; color: #FFD635; }
-.lb-entry:nth-child(2) .lb-rank { opacity: 1; color: #D4D7D9; }
-.lb-entry:nth-child(3) .lb-rank { opacity: 1; color: #FF6D00; }
-
-.lb-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-.lb-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-weight: 500;
-}
-
-.lb-count {
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  opacity: 0.8;
-  font-size: 0.75rem;
-}
-
-/* --- CANVAS --- */
 
 #canvas-wrapper {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  max-width: 100vw;
-  max-height: 100vh;
+  position: relative;
+  background: #fff;
 }
 
 #pixel-canvas {
+  display: block;
   image-rendering: pixelated;
-  border: 2px solid #ccc;
-  border-radius: 4px;
 }
 
-/* --- QR CODE --- */
+/* Overlays d'equipes */
+#overlays {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
 
-#qr-box {
-  position: fixed;
-  bottom: 16px;
-  right: 16px;
+#overlays img {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: top left;
+  pointer-events: none;
+  image-rendering: pixelated;
+}
+
+/* ─── PANNEAU DROIT ───────────────────────────────────────────────────────── */
+
+#right-panel {
+  width: 380px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ─── LEADERBOARD CARD ────────────────────────────────────────────────────── */
+
+#leaderboard-card {
+  flex: 1;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.lb-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--red);
+  text-align: center;
+  padding: 14px 16px 10px;
+  flex-shrink: 0;
+}
+
+/* Tabs */
+.lb-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 12px;
+  flex-shrink: 0;
+}
+
+.lb-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 7px 10px;
+  border-radius: 30px;
+  border: none;
+  background: #f2f2f2;
+  color: #999;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s;
+}
+
+.lb-tab.active {
+  background: var(--red);
+  color: #fff;
+}
+
+/* Scrollable content */
+#leaderboard-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 12px 12px;
+  min-height: 0;
+}
+
+/* Column headers */
+.lb-headers {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  gap: 8px;
+  padding: 4px 10px 6px;
+  color: var(--gray);
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+/* Entry rows */
+.lb-entry {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  margin-bottom: 3px;
+}
+
+.lb-entry.top3 {
+  background: var(--red-light);
+  border: 1px solid var(--red-mid);
+}
+
+.lb-rank-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.lb-rank-badge svg { display: block; }
+
+.lb-rank-num {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--red);
+  text-align: center;
+  width: 28px;
+}
+
+.lb-info {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.lb-name {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #222;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-team-sub {
+  font-size: 0.7rem;
+  color: var(--red);
+  opacity: 0.7;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lb-pts {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--red);
+  white-space: nowrap;
+}
+
+.lb-separator {
+  height: 1px;
+  background: var(--border);
+  margin: 8px 0;
+}
+
+/* ─── PODIUM EQUIPES ──────────────────────────────────────────────────────── */
+
+.lb-podium {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 4px 12px;
+}
+
+.podium-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  background: #ffffffcc;
-  backdrop-filter: blur(8px);
-  padding: 12px;
-  border-radius: 12px;
-  border: 1px solid #ddd;
-  z-index: 10;
+  gap: 4px;
+  flex: 1;
 }
 
-#qr-code img { border-radius: 4px; }
-#qr-label { font-size: 0.7rem; opacity: 0.6; font-weight: 600; }
-#wifi-label { font-size: 0.65rem; opacity: 0.5; }
+.podium-crown {
+  font-size: 1.2rem;
+  line-height: 1;
+  margin-bottom: 2px;
+}
 
-/* --- ECRAN D'ATTENTE --- */
+.podium-avatar {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  background: var(--red-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.podium-item.rank-1 .podium-avatar {
+  width: 64px;
+  height: 64px;
+}
+
+.podium-avatar svg {
+  color: var(--red);
+}
+
+.podium-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #2d1a1a;
+  color: #fff;
+  font-size: 0.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #fff;
+}
+
+.podium-name {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #222;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+.podium-pts {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--red);
+  text-align: center;
+}
+
+.podium-members {
+  font-size: 0.65rem;
+  color: var(--gray);
+  text-align: center;
+}
+
+/* Team icon in list rows */
+.lb-team-icon {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  border: 1.5px solid var(--red);
+  background: var(--red-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--red);
+}
+
+.lb-entry .lb-info-team {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* ─── QR CARD ─────────────────────────────────────────────────────────────── */
+
+#qr-card {
+  flex-shrink: 0;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.qr-instructions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #444;
+  line-height: 1.4;
+}
+
+.qr-instructions strong {
+  font-weight: 700;
+  color: #222;
+}
+
+#qr-code img {
+  border-radius: 6px;
+  display: block;
+}
+
+/* ─── ECRAN D'ATTENTE ─────────────────────────────────────────────────────── */
 
 #waiting {
   position: fixed;
@@ -145,7 +377,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #f0f0f5ee;
+  background: #f5f5f5;
   z-index: 5;
   transition: opacity 0.5s;
 }
@@ -159,6 +391,6 @@ body {
   gap: 0.75rem;
 }
 
-.waiting-content h1 { font-size: 3rem; }
+.waiting-content h1 { font-size: 3rem; font-weight: 800; }
 .waiting-content p { font-size: 1.2rem; opacity: 0.6; }
 .muted { opacity: 0.3 !important; font-size: 0.9rem !important; }

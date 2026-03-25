@@ -52,7 +52,8 @@ const memberOverlayControls = document.getElementById("member-overlay-controls")
 const memberOpacitySlider = document.getElementById("member-opacity-slider");
 
 // Overlay
-const overlayImg = document.getElementById("overlay-img");
+const overlayImg   = document.getElementById("overlay-img");
+const overlayGuide = document.getElementById("overlay-guide");
 const overlayEditBar = document.getElementById("overlay-edit-bar");
 const overlayOpacitySlider = document.getElementById("overlay-opacity-slider");
 const btnOverlayScaleDown = document.getElementById("btn-overlay-scale-down");
@@ -297,7 +298,7 @@ function buildPalette(colors) {
     const btn = document.createElement("div");
     btn.className = "palette-color";
     btn.style.background = color;
-    if (["#FFFFFF", "#D4D7D9"].includes(color)) {
+    if (["#FFFFFF", "#D4D7D9", "#D5D7D9", "#FFF8B8", "#94B3FF", "#51E9F4", "#FEA800", "#FED734"].includes(color)) {
       btn.style.border = "2px solid #555";
     }
     btn.addEventListener("click", () => {
@@ -450,8 +451,8 @@ btnZoomIn.addEventListener("click", () => {
     const oldZoom = zoomLevel;
     const currentSteps = Math.round(zoomLevel / CANVAS_FILL_ZOOM);
     zoomLevel = Math.min(MAX_ZOOM, CANVAS_FILL_ZOOM * (currentSteps + 1));
-    panX = focusX * (zoomLevel / oldZoom) - anchorX;
-    panY = focusY * (zoomLevel / oldZoom) - anchorY;
+    panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorX;
+    panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorY;
     updateViewport();
   }
 });
@@ -465,8 +466,8 @@ btnZoomOut.addEventListener("click", () => {
     zoomLevel = currentSteps > 1
       ? Math.max(MIN_ZOOM, CANVAS_FILL_ZOOM * (currentSteps - 1))
       : MIN_ZOOM;
-    panX = focusX * (zoomLevel / oldZoom) - anchorX;
-    panY = focusY * (zoomLevel / oldZoom) - anchorY;
+    panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorX;
+    panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorY;
     updateViewport();
   }
 });
@@ -532,12 +533,16 @@ canvasContainer.addEventListener("touchmove", (e) => {
 
     const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoomLevel * scale));
     if (newZoom !== zoomLevel) {
+      // World position under the pinch midpoint
       const focusX = panX + midX;
       const focusY = panY + midY;
       const oldZoom = zoomLevel;
       zoomLevel = newZoom;
-      panX = focusX * (zoomLevel / oldZoom) - midX;
-      panY = focusY * (zoomLevel / oldZoom) - midY;
+      // Keep the canvas pixel under the pinch midpoint fixed on screen.
+      // Canvas is offset by CANVAS_PAD_H inside the world, so we must
+      // scale around that offset rather than world origin.
+      panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - midX;
+      panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - midY;
       updateViewport();
     }
     lastPinchDist = dist; // toujours mis a jour
@@ -1030,13 +1035,29 @@ ws.addEventListener("close", () => {
 // =============================================================================
 
 function renderOverlay(data) {
-  if (!data || !data.imageData || !overlayVisible) {
-    overlayImg.classList.add("hidden");
+  // L'original n'est jamais visible en dehors du mode edition
+  overlayImg.classList.add("hidden");
+
+  if (!data || !data.imageData) {
+    overlayGuide.classList.add("hidden");
+    overlayGuide.width = 0; // reset pour forcer le recalcul au prochain template
     return;
   }
-  overlayImg.src = data.imageData;
-  overlayImg.classList.remove("hidden");
-  applyOverlayTransform(data);
+
+  // Calculer le guide si le template a change (membres / reconnexion)
+  if (overlayImg.dataset.guideSrc !== data.imageData) {
+    overlayImg.dataset.guideSrc = data.imageData;
+    computeGuide(data); // async — affiche le guide une fois calcule
+    return;             // computeGuide gerera l'affichage dans son callback
+  }
+
+  // Guide deja calcule : afficher ou cacher selon le toggle membre
+  if (overlayVisible && overlayGuide.width > 0) {
+    overlayGuide.classList.remove("hidden");
+    applyGuideTransform(data);
+  } else {
+    overlayGuide.classList.add("hidden");
+  }
 }
 
 function applyOverlayTransform(data) {
@@ -1062,9 +1083,83 @@ function applyOverlayTransform(data) {
 
 // Recalculer la transform quand le zoom change (appelé depuis updateViewport)
 function refreshOverlayTransform() {
-  const src = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
-  if (src) applyOverlayTransform(src);
+  if (overlayEditMode) {
+    if (overlayDraft) applyOverlayTransform(overlayDraft);
+  } else {
+    const src = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
+    if (src && overlayVisible && overlayGuide.width > 0) applyGuideTransform(src);
+  }
 }
+
+// =============================================================================
+// GUIDE DE COULEURS — quantisation palette sur le template
+// =============================================================================
+
+function applyGuideTransform(data) {
+  const pixelSize   = zoomLevel;
+  const imgNaturalW = overlayGuide.width || 1;
+  const targetW     = canvasSize.width * data.scale * pixelSize;
+  const ratio       = targetW / imgNaturalW;
+  const tx          = CANVAS_PAD_H + data.x * pixelSize;
+  const ty          = CANVAS_PAD_H + data.y * pixelSize;
+  overlayGuide.style.transform = `translate(${tx}px, ${ty}px) scale(${ratio})`;
+  overlayGuide.style.opacity   = localOverlayOpacity !== null ? localOverlayOpacity : 0.75;
+}
+
+function computeGuide(data) {
+  overlayGuide.classList.add("hidden");
+  if (!data || !data.imageData || palette.length === 0) return;
+
+  const img = new Image();
+  img.onload = () => {
+    // Taille cible en pixels canvas : chaque pixel du guide = 1 pixel du canvas
+    const guideW = Math.max(1, Math.round(canvasSize.width  * data.scale));
+    const guideH = Math.max(1, Math.round(img.naturalHeight / img.naturalWidth * guideW));
+
+    // Downsampler l'image a la resolution canvas (nearest-neighbor)
+    const tmp = document.createElement("canvas");
+    tmp.width  = guideW;
+    tmp.height = guideH;
+    const tCtx = tmp.getContext("2d");
+    tCtx.imageSmoothingEnabled = false;
+    tCtx.drawImage(img, 0, 0, guideW, guideH);
+    const imgData = tCtx.getImageData(0, 0, guideW, guideH);
+    const d = imgData.data;
+
+    // Precompute palette as RGB triples
+    const palRGB = palette.map(hex => [
+      parseInt(hex.slice(1, 3), 16),
+      parseInt(hex.slice(3, 5), 16),
+      parseInt(hex.slice(5, 7), 16),
+    ]);
+
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] < 128) { d[i + 3] = 0; continue; } // transparent → skip
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      let bestDist = Infinity, bestIdx = 0;
+      for (let j = 0; j < palRGB.length; j++) {
+        const dr = r - palRGB[j][0], dg = g - palRGB[j][1], db = b - palRGB[j][2];
+        const dist = dr * dr + dg * dg + db * db;
+        if (dist < bestDist) { bestDist = dist; bestIdx = j; }
+      }
+      d[i]     = palRGB[bestIdx][0];
+      d[i + 1] = palRGB[bestIdx][1];
+      d[i + 2] = palRGB[bestIdx][2];
+      d[i + 3] = 255;
+    }
+
+    overlayGuide.width  = guideW;
+    overlayGuide.height = guideH;
+    overlayGuide.getContext("2d").putImageData(imgData, 0, 0);
+
+    if (overlayVisible) {
+      overlayGuide.classList.remove("hidden");
+      applyGuideTransform(data);
+    }
+  };
+  img.src = data.imageData;
+}
+
 
 // =============================================================================
 // OVERLAY — TOGGLE VISIBILITE (membre, local)
@@ -1074,15 +1169,22 @@ btnToggleOverlay.addEventListener("click", () => {
   overlayVisible = !overlayVisible;
   btnToggleOverlay.style.opacity = overlayVisible ? "1" : "0.4";
   memberOpacitySlider.style.opacity = overlayVisible ? "1" : "0.4";
-  const current = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
-  renderOverlay(current);
+  if (overlayVisible && overlayGuide.width > 0) {
+    const current = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
+    if (current) {
+      overlayGuide.classList.remove("hidden");
+      applyGuideTransform(current);
+    }
+  } else {
+    overlayGuide.classList.add("hidden");
+  }
 });
 
-// Opacite locale du template (pour les membres)
+// Opacite locale du guide (pour les membres)
 memberOpacitySlider.addEventListener("input", () => {
   localOverlayOpacity = memberOpacitySlider.value / 100;
-  const current = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
-  if (current) applyOverlayTransform(current);
+  const current = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
+  if (current && overlayGuide.width > 0) applyGuideTransform(current);
 });
 
 // =============================================================================
@@ -1125,11 +1227,16 @@ function enterOverlayEditMode() {
   overlayEditBar.classList.remove("hidden");
   overlayOpacitySlider.value = Math.round((overlayDraft.opacity || 0.5) * 100);
 
-  renderOverlay(overlayDraft);
+  // Pendant l'edition on affiche l'original pour pouvoir le positionner
+  overlayGuide.classList.add("hidden");
+  overlayImg.src = overlayDraft.imageData;
+  overlayImg.classList.remove("hidden");
+  applyOverlayTransform(overlayDraft);
 }
 
 function exitOverlayEditMode() {
   overlayEditMode = false;
+  overlayImg.classList.add("hidden"); // l'original disparait apres edition
   canvasContainer.classList.remove("overlay-edit-mode");
   overlayEditBar.classList.add("hidden");
   overlayDraft = null;
@@ -1158,8 +1265,12 @@ btnOverlayScaleUp.addEventListener("click", () => {
 // Confirmer
 btnOverlayConfirm.addEventListener("click", () => {
   if (!overlayDraft) return;
-  send("setOverlay", { overlay: { ...overlayDraft } });
+  const finalOverlay = { ...overlayDraft };
+  send("setOverlay", { overlay: finalOverlay });
   exitOverlayEditMode();
+  // Calcule le guide pixelise avec la taille/position finale
+  overlayImg.dataset.guideSrc = finalOverlay.imageData; // marquer comme traite
+  computeGuide(finalOverlay);
 });
 
 // Annuler

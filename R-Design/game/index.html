@@ -3,36 +3,57 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Pixel War — Ecran</title>
+    <title>r/design — Écran</title>
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
 
-    <!-- LEADERBOARD (en haut a gauche) -->
-    <div id="leaderboard">
-      <div class="leaderboard-header">
-        <h2 id="leaderboard-title">🏆 Top Joueurs</h2>
-        <span id="player-count" class="player-count">0 joueurs</span>
+    <div id="page">
+
+      <!-- CANVAS -->
+      <div id="canvas-section">
+        <div id="canvas-wrapper">
+          <canvas id="pixel-canvas"></canvas>
+        </div>
       </div>
-      <div id="leaderboard-list"></div>
-    </div>
 
-    <!-- CANVAS PRINCIPAL -->
-    <div id="canvas-wrapper">
-      <canvas id="pixel-canvas"></canvas>
-    </div>
+      <!-- PANNEAU DROIT -->
+      <div id="right-panel">
 
-    <!-- QR CODE (en bas a droite) -->
-    <div id="qr-box">
-      <div id="qr-code"></div>
-      <span id="qr-label">Scannez pour jouer</span>
-      <span id="wifi-label">📶 WiFi : <strong>edna_etudiant</strong></span>
+        <!-- LEADERBOARD -->
+        <div id="leaderboard-card">
+          <h2 class="lb-title">Leaderboard</h2>
+
+          <div class="lb-tabs">
+            <button id="tab-joueurs" class="lb-tab active">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+              Joueurs
+            </button>
+            <button id="tab-equipes" class="lb-tab">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3 2.7-5.5 6-5.5"/><circle cx="16" cy="8" r="3"/><path d="M22 20c0-3-2.7-5.5-6-5.5s-6 2.5-6 5.5"/></svg>
+              Équipes
+            </button>
+          </div>
+
+          <div id="leaderboard-content"></div>
+        </div>
+
+        <!-- QR CODE -->
+        <div id="qr-card">
+          <div class="qr-instructions">
+            <p>1. Connectez vous à :<br><strong id="wifi-name">edna_etudiant</strong></p>
+            <p>2. Scannez le QR code</p>
+          </div>
+          <div id="qr-code"></div>
+        </div>
+
+      </div>
     </div>
 
     <!-- EN ATTENTE -->
     <div id="waiting">
       <div class="waiting-content">
-        <h1>🎨 Pixel War</h1>
+        <h1>r/design</h1>
         <p>En attente de joueurs...</p>
         <p class="muted">Scannez le QR code pour rejoindre</p>
       </div>
