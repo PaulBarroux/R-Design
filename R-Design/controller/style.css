@@ -26,8 +26,10 @@ body {
 
 #screen-join, #screen-id-reveal {
   justify-content: flex-start;
-  padding-top: 0;
-  overflow: hidden;
+  padding: 0;
+  gap: 0;
+  overflow-x: hidden;
+  background: #F0F0F0;
 }
 
 #screen-game {
@@ -43,35 +45,22 @@ body {
 
 .hidden { display: none !important; }
 
-/* --- Hero colored blocks banner --- */
-.hero-blocks {
-  position: relative;
-  width: 100%;
-  height: 220px;
-  overflow: hidden;
-  flex-shrink: 0;
-  margin-bottom: 0.5rem;
-}
-
-.block {
-  position: absolute;
-  border-radius: 8px;
-}
-
-.block-red    { background: #FF0000; width: 120px; height: 130px; top: 100px; left: -30px; }
-.block-cyan   { background: #00AAFF; width: 140px; height: 150px; top: 40px;  left: 80px; }
-.block-green  { background: #55AA00; width: 150px; height: 160px; top: 60px;  left: 190px; }
-.block-blue   { background: #0044FF; width: 120px; height: 130px; top: 80px;  left: 310px; z-index: 1; }
-.block-yellow { background: #FFD600; width: 140px; height: 140px; top: 50px;  right: 50px; }
-.block-orange { background: #FF8800; width: 120px; height: 120px; top: 70px;  right: -30px; }
-
-/* --- App title --- */
-.app-title {
-  font-size: 2.5rem;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+/* --- App logo (SVG asset) --- */
+.app-logo {
   align-self: flex-start;
-  padding-left: 0.25rem;
+  width: 190px;
+  height: auto;
+  padding: 2.75rem 0 1.25rem 1.5rem;
+  flex-shrink: 0;
+  display: block;
+}
+
+/* --- Hero visuel (SVG asset pleine largeur) --- */
+.hero-visuel {
+  width: 100%;
+  height: auto;
+  display: block;
+  flex-shrink: 0;
 }
 
 /* --- WiFi notice --- */
@@ -91,21 +80,21 @@ body {
 h1 { font-size: 1.8rem; font-weight: 700; }
 h3 { font-size: 1.1rem; font-weight: 700; }
 
-.subtitle { font-size: 0.95rem; opacity: 0.7; text-align: center; }
+.subtitle { font-size: 0.95rem; color: #555; text-align: center; line-height: 1.5; }
 
 .form {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
   width: 100%;
-  max-width: 360px;
+  padding: 1.75rem 1.5rem 2rem;
 }
 
 label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  opacity: 0.5;
+  color: #555;
   font-weight: 700;
 }
 
@@ -133,16 +122,17 @@ input:focus { border-color: #222; }
 
 /* Outlined input (reconnect ID) */
 .input-outlined {
-  background: transparent;
-  border: 2px solid #ddd;
+  background: #e8e8e8;
+  border-color: transparent;
   text-transform: uppercase;
   text-align: center;
   letter-spacing: 0.3em;
   font-weight: 700;
   font-size: 1.1rem;
+  color: #444;
 }
 
-.input-outlined:focus { border-color: #222; }
+.input-outlined:focus { border-color: #222; background: #fff; color: #222; }
 
 /* Separator line (no text) */
 .separator-line {
@@ -269,37 +259,44 @@ input:focus { border-color: #222; }
 }
 
 /* --- ID Reveal --- */
+.id-reveal-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.75rem 1.5rem 2rem;
+}
+
 .big-id {
   font-family: monospace;
-  font-size: 2.6rem;
+  font-size: 2.8rem;
   font-weight: 900;
-  letter-spacing: 0.35em;
+  letter-spacing: 0.5em;
   color: #111;
-  background: #f5f3ef;
-  padding: 1rem 1.5rem;
-  border-radius: 16px;
-  border: 2px dashed #ccc;
+  background: #E8E8E8;
+  padding: 1.1rem 1.5rem 1.1rem 2rem; /* compenser le letter-spacing */
+  border-radius: 14px;
+  border: 2px dashed #bbb;
   text-align: center;
   width: 100%;
-  max-width: 360px;
 }
 
 /* --- ID Actions (reveal screen) --- */
 .id-actions {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
   width: 100%;
-  max-width: 360px;
 }
 
 .btn-copy {
   flex: 1;
-  padding: 0.65rem;
-  border-radius: 10px;
+  padding: 0.85rem 0.5rem;
+  border-radius: 30px;
   border: 2px solid #3690EA;
   background: transparent;
   color: #3690EA;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   transition: background 0.15s;
@@ -309,12 +306,12 @@ input:focus { border-color: #222; }
 
 .btn-sms {
   flex: 1;
-  padding: 0.65rem;
-  border-radius: 10px;
+  padding: 0.85rem 0.5rem;
+  border-radius: 30px;
   border: 2px solid #00A368;
   background: transparent;
   color: #00A368;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
   cursor: pointer;
   text-decoration: none;
@@ -544,6 +541,8 @@ input:focus { border-color: #222; }
   position: absolute;
   image-rendering: pixelated;
   cursor: crosshair;
+  background: #fff;
+  outline: 1px solid #ddd;
 }
 
 /* Curseur de selection du pixel */

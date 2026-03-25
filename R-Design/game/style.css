@@ -50,6 +50,7 @@ body {
 #pixel-canvas {
   display: block;
   image-rendering: pixelated;
+  background: #fff;
 }
 
 /* Overlays d'equipes */

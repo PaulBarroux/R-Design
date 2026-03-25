@@ -73,7 +73,7 @@ app.get("/", (req, res) => {
 
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 200;
-const DEFAULT_COOLDOWN = 30 * 1000;
+const DEFAULT_COOLDOWN = 1 * 1000;
 const INACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 min sans action = inactif
 
 const COLOR_PALETTE = [
@@ -88,13 +88,10 @@ const COLOR_PALETTE = [
 // ETAT DU JEU
 // =============================================================================
 
-// Canvas en damier par defaut (alternance blanc / gris clair)
+// Canvas blanc par defaut
 const canvas = [];
 for (let y = 0; y < CANVAS_HEIGHT; y++) {
-  canvas[y] = [];
-  for (let x = 0; x < CANVAS_WIDTH; x++) {
-    canvas[y][x] = (x + y) % 2 === 0 ? "#FFFFFF" : "#EBEBEB";
-  }
+  canvas[y] = Array(CANVAS_WIDTH).fill("#FFFFFF");
 }
 
 const players = {};

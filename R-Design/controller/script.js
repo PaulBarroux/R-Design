@@ -327,9 +327,14 @@ function renderCanvas(data) {
       const idx = (y * canvasSize.width + x) * 4;
       const color = data[y][x];
       if (color) {
-        imageData.data[idx] = parseInt(color.slice(1, 3), 16);
+        imageData.data[idx]     = parseInt(color.slice(1, 3), 16);
         imageData.data[idx + 1] = parseInt(color.slice(3, 5), 16);
         imageData.data[idx + 2] = parseInt(color.slice(5, 7), 16);
+        imageData.data[idx + 3] = 255;
+      } else {
+        imageData.data[idx]     = 255;
+        imageData.data[idx + 1] = 255;
+        imageData.data[idx + 2] = 255;
         imageData.data[idx + 3] = 255;
       }
     }

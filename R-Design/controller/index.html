@@ -12,16 +12,8 @@
          ECRAN 1 : Rejoindre / Se reconnecter
          ================================================================ -->
     <div id="screen-join" class="screen">
-      <div class="hero-blocks" aria-hidden="true">
-        <div class="block block-red"></div>
-        <div class="block block-cyan"></div>
-        <div class="block block-green"></div>
-        <div class="block block-blue"></div>
-        <div class="block block-yellow"></div>
-        <div class="block block-orange"></div>
-      </div>
-
-      <h1 class="app-title">r/design</h1>
+      <img class="app-logo" src="/controller/assets/logo_rdesign.svg" alt="r/design" />
+      <img class="hero-visuel" src="/controller/assets/visuel_rdesign.svg" alt="" aria-hidden="true" />
 
       <div class="form">
         <!-- Nouveau compte -->
@@ -45,25 +37,19 @@
          ECRAN 1b : ID reveal — Affiche l'ID apres creation
          ================================================================ -->
     <div id="screen-id-reveal" class="screen hidden">
-      <div class="hero-blocks" aria-hidden="true">
-        <div class="block block-red"></div>
-        <div class="block block-cyan"></div>
-        <div class="block block-green"></div>
-        <div class="block block-blue"></div>
-        <div class="block block-yellow"></div>
-        <div class="block block-orange"></div>
-      </div>
+      <img class="app-logo" src="/controller/assets/logo_rdesign.svg" alt="r/design" />
+      <img class="hero-visuel" src="/controller/assets/visuel_rdesign.svg" alt="" aria-hidden="true" />
 
-      <h1 class="app-title">r/design</h1>
-
-      <p class="subtitle">Voici ton identifiant unique :</p>
-      <div id="reveal-id" class="big-id">-----</div>
-      <p class="subtitle"><strong>Note-le bien</strong> ! Il te permettra de te reconnecter quand tu veux.</p>
-      <div class="id-actions">
-        <button id="btn-copy-id" class="btn-copy">Copier l'ID</button>
-        <a id="btn-sms-id" class="btn-sms" href="#">Envoyer par SMS</a>
+      <div class="id-reveal-content">
+        <p class="subtitle">Voici ton identifiant unique :</p>
+        <div id="reveal-id" class="big-id">-----</div>
+        <p class="subtitle"><strong>Note-le bien</strong> ! Il te permettra de te reconnecter quand tu veux.</p>
+        <div class="id-actions">
+          <button id="btn-copy-id" class="btn-copy">Copier l'ID</button>
+          <a id="btn-sms-id" class="btn-sms" href="#">Envoyer par SMS</a>
+        </div>
+        <button id="btn-continue" class="btn-black">Continuer</button>
       </div>
-      <button id="btn-continue" class="btn-black">Continuer</button>
     </div>
 
     <!-- ================================================================
