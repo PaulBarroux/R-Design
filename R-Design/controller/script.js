@@ -29,8 +29,12 @@ const btnCopyId = document.getElementById("btn-copy-id");
 const btnSmsId = document.getElementById("btn-sms-id");
 
 // Game screen
-const displayPseudo = document.getElementById("display-pseudo");
-const displayId = document.getElementById("display-id");
+const displayPseudo      = document.getElementById("display-pseudo");
+const displayPoints      = document.getElementById("display-points");
+const displayId          = document.getElementById("display-id");
+const profilePseudo      = document.getElementById("profile-pseudo");
+const displayPointsProfile = document.getElementById("display-points-profile");
+const btnCopyDisplayId   = document.getElementById("btn-copy-display-id");
 const displayTeam = document.getElementById("display-team");
 const displayTeamDot = document.getElementById("display-team-dot");
 const displayTeamText = document.getElementById("display-team-text");
@@ -276,8 +280,8 @@ btnCopyId.addEventListener("click", () => {
   }
 });
 
-// Cliquer sur l'ID en jeu pour le copier
-displayId.addEventListener("click", () => {
+// Bouton profil — copier l'ID
+btnCopyDisplayId.addEventListener("click", () => {
   const id = displayId.textContent.trim();
   if (!id || id === "—") return;
   copyText(id, () => {
@@ -895,7 +899,10 @@ ws.addEventListener("message", (event) => {
     localStorage.setItem("pixelwar_playerId", data.playerId);
 
     displayPseudo.textContent = data.pseudo;
+    profilePseudo.textContent = data.pseudo;
     displayId.textContent = data.playerId;
+    displayPoints.textContent = "0 pts";
+    displayPointsProfile.textContent = "0 pts";
 
     if (data.teamId) myTeamId = data.teamId;
     updateTeamUI();
@@ -958,7 +965,13 @@ ws.addEventListener("message", (event) => {
 
   // --- Leaderboard ---
   if (type === "leaderboard") {
-    // Pas utilise cote controller pour l'instant
+    const pseudo = displayPseudo.textContent;
+    if (!pseudo || pseudo === "—") return;
+    const me = data.individual.find(e => e.pseudo === pseudo);
+    const pts = me ? me.count : 0;
+    const label = pts + " pt" + (pts !== 1 ? "s" : "");
+    displayPoints.textContent = label;
+    displayPointsProfile.textContent = label;
   }
 
   // --- Pixel info (qui a pose ce pixel) ---

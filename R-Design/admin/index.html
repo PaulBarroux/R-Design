@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <title>Admin — r/design</title>
+    <link rel="stylesheet" href="/controller/style.css" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+
+    <!-- ================================================================
+         ECRAN 1 : Connexion admin
+         ================================================================ -->
+    <div id="screen-join" class="screen">
+      <img class="app-logo" src="/controller/assets/logo_rdesign.svg" alt="r/design" />
+      <img class="hero-visuel" src="/controller/assets/visuel_rdesign.svg" alt="" aria-hidden="true" />
+
+      <div class="form">
+        <label for="password-input">Mot de passe admin</label>
+        <input type="password" id="password-input" class="input-filled" placeholder="Mot de passe..." autocomplete="off" />
+        <button id="btn-login" class="btn-black">Connexion</button>
+        <div id="login-error" class="error-msg hidden"></div>
+      </div>
+    </div>
+
+    <!-- ================================================================
+         ECRAN 2 : Interface admin
+         ================================================================ -->
+    <div id="screen-game" class="screen hidden">
+
+      <div id="game-header" class="game-header">
+        <div class="player-bar">
+          <div class="player-left">
+            <span id="display-pseudo">Admin</span>
+            <span class="player-points admin-badge-pill">ADMIN</span>
+          </div>
+          <span id="display-team" class="badge">
+            <span id="status-dot" class="badge-dot"></span>
+            <span id="status-text">Connecte</span>
+          </span>
+        </div>
+        <div class="tabs">
+          <button class="tab active" data-tab="canvas">Canva</button>
+          <button class="tab" data-tab="players">Joueurs</button>
+          <button class="tab" data-tab="teams">Equipes</button>
+        </div>
+        <div id="game-error" class="error-msg hidden"></div>
+      </div>
+
+      <!-- ============================================================
+           ONGLET CANVAS
+           ============================================================ -->
+      <div id="tab-canvas" class="tab-content">
+
+        <div id="canvas-container">
+          <div id="canvas-viewport">
+            <canvas id="pixel-canvas"></canvas>
+            <div id="pixel-cursor" class="hidden"></div>
+          </div>
+        </div>
+
+        <div id="bottom-sheet" class="bottom-sheet">
+          <div class="sheet-handle"></div>
+
+          <div class="canvas-controls">
+            <button id="btn-zoom-out" class="ctrl-btn">−</button>
+            <span id="zoom-level">1x</span>
+            <button id="btn-zoom-in" class="ctrl-btn">+</button>
+            <span class="spacer"></span>
+            <div class="pixel-info">
+              <span id="coords-text">—</span>
+            </div>
+          </div>
+
+          <span class="sheet-section-label">Couleurs</span>
+          <div id="palette"></div>
+
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ONGLET JOUEURS
+           ============================================================ -->
+      <div id="tab-players" class="tab-content hidden">
+        <div class="admin-tab-header">
+          <span class="admin-tab-count" id="players-count">0</span> joueurs
+        </div>
+        <div id="players-list" class="members-list">
+          <p class="muted">Aucun joueur</p>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ONGLET EQUIPES — liste
+           ============================================================ -->
+      <div id="tab-teams" class="tab-content hidden">
+        <div class="admin-tab-header">
+          <span class="admin-tab-count" id="teams-count">0</span> equipes
+        </div>
+        <div id="teams-list" class="teams-list">
+          <p class="muted">Aucune equipe</p>
+        </div>
+      </div>
+
+      <!-- ============================================================
+           ONGLET EQUIPES — detail (vue par-dessus la liste)
+           ============================================================ -->
+      <div id="tab-team-detail" class="tab-content hidden">
+
+        <div class="detail-header">
+          <button id="btn-back-teams" class="btn-back">← Retour</button>
+          <div id="detail-team-dot" class="team-dot-big"></div>
+          <div class="detail-title">
+            <h3 id="detail-team-name">—</h3>
+            <p id="detail-team-stats" class="muted">—</p>
+          </div>
+        </div>
+
+        <div id="detail-members-list" class="members-list"></div>
+
+        <!-- Section template (admin a toujours acces) -->
+        <div class="overlay-section">
+          <div class="separator">Template</div>
+          <div id="overlay-preview-row" class="overlay-preview-row hidden">
+            <img id="overlay-thumbnail" class="overlay-thumbnail" />
+            <button id="btn-overlay-delete" class="btn-kick">Supprimer</button>
+          </div>
+          <button id="btn-overlay-add" class="btn-toggle-create">+ Ajouter un template</button>
+        </div>
+
+      </div>
+
+      <!-- Input file cache pour import image -->
+      <input type="file" id="overlay-file-input" accept="image/*" style="display:none" />
+
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>

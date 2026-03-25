@@ -15,6 +15,7 @@ const { createServer } = require("http");
 const { WebSocketServer } = require("ws");
 const path = require("path");
 const os = require("os");
+const crypto = require("crypto");
 
 // =============================================================================
 // LOGGING — horodatage + types differencies
@@ -57,11 +58,31 @@ const wss = new WebSocketServer({ server: http });
 const PORT = 3000;
 
 // =============================================================================
+// ADMIN
+// =============================================================================
+
+const ADMIN_PASSWORD = "AZE12";
+const ADMIN_COOLDOWN = 100; // ms entre chaque pixel admin
+const ADMIN_TOKEN = crypto.randomBytes(16).toString("hex");
+const adminConnections = new Set();
+
+// =============================================================================
 // FICHIERS STATIQUES
 // =============================================================================
 
 app.use("/controller", express.static(path.join(__dirname, "controller")));
 app.use("/game", express.static(path.join(__dirname, "game")));
+app.use("/admin", express.static(path.join(__dirname, "admin")));
+
+app.use(express.json());
+
+app.post("/admin/auth", (req, res) => {
+  if (req.body && req.body.password === ADMIN_PASSWORD) {
+    res.json({ ok: true, token: ADMIN_TOKEN });
+  } else {
+    res.status(401).json({ ok: false, message: "Mot de passe incorrect." });
+  }
+});
 
 app.get("/", (req, res) => {
   res.redirect("/controller");
@@ -73,7 +94,7 @@ app.get("/", (req, res) => {
 
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 200;
-const DEFAULT_COOLDOWN = 1 * 1000;
+const DEFAULT_COOLDOWN = 20 * 1000;
 const INACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 min sans action = inactif
 
 const COLOR_PALETTE = [
@@ -273,6 +294,27 @@ function getTeamsPublicData() {
 }
 
 // =============================================================================
+// DONNEES JOUEURS (pour admin)
+// =============================================================================
+
+function getPlayersPublicData() {
+  return Object.values(players).map((p) => ({
+    id: p.id,
+    pseudo: p.pseudo,
+    teamId: p.teamId,
+    active: p.active,
+    blocked: p.blocked || false,
+  }));
+}
+
+function broadcastToAdmins(type, data) {
+  const msg = JSON.stringify({ type, data });
+  adminConnections.forEach((ws) => {
+    if (ws.readyState === ws.OPEN) ws.send(msg);
+  });
+}
+
+// =============================================================================
 // UTILITAIRE : RETIRER UN JOUEUR D'UNE EQUIPE
 // =============================================================================
 
@@ -303,12 +345,122 @@ wss.on("connection", (ws) => {
     teams: getTeamsPublicData(),
     playerCount: getActivePlayerCount(),
     palette: COLOR_PALETTE,
+    players: getPlayersPublicData(),
   });
 
   ws.on("message", (raw) => {
     let msg;
     try { msg = JSON.parse(raw); } catch { return; }
     const { type, data } = msg;
+
+    // === ADMIN AUTH ===
+    if (type === "adminAuth") {
+      if (data.token === ADMIN_TOKEN) {
+        ws._isAdmin = true;
+        adminConnections.add(ws);
+        log.info("Admin connecte");
+        send(ws, "adminAuthOk", {});
+      } else {
+        send(ws, "error", { message: "Token admin invalide." });
+      }
+      return;
+    }
+
+    // === ADMIN TOGGLE BLOCK ===
+    if (type === "adminToggleBlock") {
+      if (!ws._isAdmin) return;
+      const targetId = data.playerId;
+      if (!targetId || !players[targetId]) return;
+      players[targetId].blocked = !players[targetId].blocked;
+      const state = players[targetId].blocked ? "bloque" : "debloque";
+      log.info(`[ADMIN] ${players[targetId].pseudo} ${state}`);
+      if (players[targetId].blocked) {
+        wss.clients.forEach((client) => {
+          if (client._playerId === targetId) {
+            send(client, "gameError", { message: "Vous avez ete bloque par l'administrateur." });
+          }
+        });
+      }
+      broadcastToAdmins("playersUpdate", getPlayersPublicData());
+      return;
+    }
+
+    // === ADMIN KICK ===
+    if (type === "adminKick") {
+      if (!ws._isAdmin) return;
+      const targetId = data.playerId;
+      const fromTeamId = String(data.teamId || "");
+      if (!targetId || !players[targetId]) return;
+      const player = players[targetId];
+      const teamId = fromTeamId || player.teamId;
+      if (!teamId || !teams[teamId]) return;
+      if (!teams[teamId].members.includes(targetId)) return;
+      const teamName = teams[teamId].name;
+      removePlayerFromTeam(targetId, teamId);
+      player.teamId = null;
+      log.team(`[ADMIN] ${player.pseudo} exclu de "${teamName}"`);
+      wss.clients.forEach((client) => {
+        if (client._playerId === targetId) send(client, "kicked", { teamName });
+      });
+      broadcast("teamsUpdate", getTeamsPublicData());
+      broadcastToAdmins("playersUpdate", getPlayersPublicData());
+      return;
+    }
+
+    // === ADMIN DELETE OVERLAY ===
+    if (type === "adminDeleteOverlay") {
+      if (!ws._isAdmin) return;
+      const teamId = String(data.teamId);
+      if (!teams[teamId]) return;
+      teams[teamId].overlay = null;
+      log.team(`[ADMIN] Overlay de "${teams[teamId].name}" supprime`);
+      broadcast("teamsUpdate", getTeamsPublicData());
+      return;
+    }
+
+    // === ADMIN SET OVERLAY ===
+    if (type === "adminSetOverlay") {
+      if (!ws._isAdmin) return;
+      const teamId = String(data.teamId);
+      if (!teams[teamId]) return;
+      if (data.overlay === null) {
+        teams[teamId].overlay = null;
+      } else {
+        const { imageData, x, y, scale, opacity } = data.overlay;
+        if (typeof imageData !== "string" || !imageData.startsWith("data:image/")) return;
+        if (imageData.length > 700000) {
+          send(ws, "error", { message: "Image trop grande (max ~500 Ko)." });
+          return;
+        }
+        teams[teamId].overlay = {
+          imageData,
+          x: typeof x === "number" ? x : 0,
+          y: typeof y === "number" ? y : 0,
+          scale: typeof scale === "number" ? Math.max(0.1, Math.min(10, scale)) : 1,
+          opacity: typeof opacity === "number" ? Math.max(0, Math.min(1, opacity)) : 0.5,
+        };
+        log.team(`[ADMIN] Overlay de "${teams[teamId].name}" mis a jour`);
+      }
+      broadcast("teamsUpdate", getTeamsPublicData());
+      return;
+    }
+
+    // === ADMIN PLACE PIXEL (anonyme, sans points) ===
+    if (type === "adminPlacePixel") {
+      if (!ws._isAdmin) return;
+      const { x, y, color } = data;
+      if (x < 0 || x >= CANVAS_WIDTH || y < 0 || y >= CANVAS_HEIGHT) return;
+      if (!COLOR_PALETTE.includes(color)) return;
+      const now = Date.now();
+      if (now - (ws._adminLastPlacement || 0) < ADMIN_COOLDOWN) return;
+      ws._adminLastPlacement = now;
+      canvas[y][x] = color;
+      // Pas de push dans pixelHistory → pas de points, pas d'attribution
+      log.pixel(`[ADMIN] (${x},${y}) ${color}`);
+      // playerId = null → anonyme pour tous les clients
+      broadcastPixelUpdate(x, y, color, null);
+      return;
+    }
 
     // === JOIN ===
     if (type === "join") {
@@ -319,6 +471,7 @@ wss.on("connection", (ws) => {
         id: playerId, pseudo, teamId: null,
         lastPlacement: 0, totalPixels: 0,
         connectedAt: Date.now(), lastActivity: Date.now(), active: true,
+        blocked: false,
       };
       ws._playerId = playerId;
       log.connect(`${pseudo} a rejoint (ID: ${playerId})`);
@@ -330,6 +483,7 @@ wss.on("connection", (ws) => {
         canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
       });
       broadcastPlayerList();
+      broadcastToAdmins("playersUpdate", getPlayersPublicData());
     }
 
     // === RECONNECT ===
@@ -349,6 +503,7 @@ wss.on("connection", (ws) => {
           canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
         });
         broadcastPlayerList();
+        broadcastToAdmins("playersUpdate", getPlayersPublicData());
       } else {
         send(ws, "joinError", {
           message: "Cet identifiant n'existe pas. Verifiez votre code ou creez un nouveau compte.",
@@ -372,6 +527,11 @@ wss.on("connection", (ws) => {
       }
       if (!COLOR_PALETTE.includes(color)) {
         send(ws, "gameError", { message: "Couleur invalide." });
+        return;
+      }
+
+      if (player.blocked) {
+        send(ws, "gameError", { message: "Vous etes bloque et ne pouvez pas poser de pixel." });
         return;
       }
 
@@ -566,6 +726,10 @@ wss.on("connection", (ws) => {
   });
 
   ws.on("close", () => {
+    if (ws._isAdmin) {
+      adminConnections.delete(ws);
+      log.info("Admin deconnecte");
+    }
     const playerId = ws._playerId;
     if (playerId && players[playerId]) {
       log.disconnect(`${players[playerId].pseudo} deconnecte (ID: ${playerId})`);
@@ -599,6 +763,7 @@ http.listen(PORT, () => {
   console.log("");
   console.log(`  ${g}Ecran de jeu${r}  http://${localIP}:${PORT}/game`);
   console.log(`  ${c}Controller  ${r}  http://${localIP}:${PORT}/controller`);
+  console.log(`  ${C.magenta}Admin       ${r}  http://${localIP}:${PORT}/admin`);
   console.log("");
   console.log(`  ${d}Canvas   : ${CANVAS_WIDTH}×${CANVAS_HEIGHT} px${r}`);
   console.log(`  ${d}Cooldown : ${DEFAULT_COOLDOWN / 1000}s${r}`);

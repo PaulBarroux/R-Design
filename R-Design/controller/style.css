@@ -809,6 +809,93 @@ input:focus { border-color: #222; }
 
 /* --- Team tab --- */
 
+/* Carte profil joueur */
+.profile-card {
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid #e8e8e8;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.85rem 1rem 0.6rem;
+}
+
+.profile-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #111;
+}
+
+.profile-pts {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #fff;
+  background: #222;
+  border-radius: 20px;
+  padding: 0.2rem 0.65rem;
+}
+
+.profile-id-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border: none;
+  border-top: 1px solid #f0f0f0;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.profile-id-row:active { background: #f5f5f5; }
+
+.profile-id-left {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+
+.profile-id-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #999;
+}
+
+.profile-id-value {
+  font-family: monospace;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #222;
+  letter-spacing: 0.15em;
+}
+
+.profile-copy-hint {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #aaa;
+}
+
+/* Badge points dans le header */
+.player-points {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #fff;
+  background: #222;
+  border-radius: 20px;
+  padding: 0.15rem 0.5rem;
+  white-space: nowrap;
+}
+
 /* Bandeau mon equipe */
 .my-team-banner {
   display: flex;

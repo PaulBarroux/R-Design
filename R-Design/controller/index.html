@@ -62,7 +62,7 @@
         <div class="player-bar">
           <div class="player-left">
             <span id="display-pseudo">—</span>
-            <span id="display-id" class="player-id" title="Copier l'ID">—</span>
+            <span id="display-points" class="player-points">—</span>
           </div>
           <!-- Timer toujours visible -->
           <div id="cooldown-bar">
@@ -149,6 +149,21 @@
            ONGLET EQUIPE — VUE GENERALE
            ============================================================ -->
       <div id="tab-team" class="tab-content hidden">
+
+        <!-- Profil joueur -->
+        <div class="profile-card">
+          <div class="profile-identity">
+            <span id="profile-pseudo" class="profile-name">—</span>
+            <span id="display-points-profile" class="profile-pts">0 pts</span>
+          </div>
+          <button id="btn-copy-display-id" class="profile-id-row">
+            <div class="profile-id-left">
+              <span class="profile-id-label">Identifiant</span>
+              <span id="display-id" class="profile-id-value">—</span>
+            </div>
+            <span class="profile-copy-hint">Copier</span>
+          </button>
+        </div>
 
         <!-- Bandeau mon equipe -->
         <div id="my-team-banner" class="my-team-banner">
