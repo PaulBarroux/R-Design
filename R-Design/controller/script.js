@@ -418,10 +418,12 @@ function updateViewport() {
   // maxPanY : le bas du canvas doit apparaitre AVANT le bord de la sheet
   // (8px = marge CSS bottom de la sheet, 16px = clearance visuelle)
   const visibleH = ch - sheetVisibleH - SHEET_CLEARANCE;
-  const maxPanX = Math.max(0, worldW - cw);
-  const maxPanY = Math.max(0, CANVAS_PAD_H + scaledH - visibleH);
-  panX = Math.max(0, Math.min(panX, maxPanX));
-  panY = Math.max(0, Math.min(panY, maxPanY));
+  const overflowX = worldW - cw;
+  const overflowY = CANVAS_PAD_H + scaledH - visibleH;
+  if (overflowX <= 0) { panX = overflowX / 2; }
+  else { panX = Math.max(0, Math.min(panX, overflowX)); }
+  if (overflowY <= 0) { panY = overflowY / 2; }
+  else { panY = Math.max(0, Math.min(panY, overflowY)); }
 
   canvasViewport.style.transform = `translate(${-panX}px, ${-panY}px)`;
 
@@ -455,30 +457,21 @@ function getZoomFocus() {
 }
 
 btnZoomIn.addEventListener("click", () => {
-  if (zoomLevel < MAX_ZOOM) {
-    const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
-    const oldZoom = zoomLevel;
-    const currentSteps = Math.round(zoomLevel / CANVAS_FILL_ZOOM);
-    zoomLevel = Math.min(MAX_ZOOM, CANVAS_FILL_ZOOM * (currentSteps + 1));
-    panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorX;
-    panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorY;
-    updateViewport();
-  }
+  const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
+  const oldZoom = zoomLevel;
+  zoomLevel = Math.min(MAX_ZOOM, zoomLevel * 1.5);
+  panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorX;
+  panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorY;
+  updateViewport();
 });
 
 btnZoomOut.addEventListener("click", () => {
-  if (zoomLevel > MIN_ZOOM) {
-    const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
-    const oldZoom = zoomLevel;
-    const currentSteps = Math.round(zoomLevel / CANVAS_FILL_ZOOM);
-    // En dessous de 1x : revenir directement au zoom minimum
-    zoomLevel = currentSteps > 1
-      ? Math.max(MIN_ZOOM, CANVAS_FILL_ZOOM * (currentSteps - 1))
-      : MIN_ZOOM;
-    panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorX;
-    panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorY;
-    updateViewport();
-  }
+  const { focusX, focusY, anchorX, anchorY } = getZoomFocus();
+  const oldZoom = zoomLevel;
+  zoomLevel = Math.max(MIN_ZOOM, zoomLevel / 1.5);
+  panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorX;
+  panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - anchorY;
+  updateViewport();
 });
 
 // Pan par touch/souris
@@ -522,6 +515,7 @@ canvasContainer.addEventListener("pointerup", (e) => {
 let lastPinchDist = 0;
 canvasContainer.addEventListener("touchstart", (e) => {
   if (e.touches.length === 2) {
+    isPanning = false;
     const dx = e.touches[0].clientX - e.touches[1].clientX;
     const dy = e.touches[0].clientY - e.touches[1].clientY;
     lastPinchDist = Math.sqrt(dx * dx + dy * dy);
@@ -557,6 +551,22 @@ canvasContainer.addEventListener("touchmove", (e) => {
     lastPinchDist = dist; // toujours mis a jour
   }
 }, { passive: true });
+
+// Wheel zoom (desktop)
+canvasContainer.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const rect = canvasContainer.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const focusX = panX + mx;
+  const focusY = panY + my;
+  const oldZoom = zoomLevel;
+  const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+  zoomLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoomLevel * factor));
+  panX = CANVAS_PAD_H + (focusX - CANVAS_PAD_H) * (zoomLevel / oldZoom) - mx;
+  panY = CANVAS_PAD_H + (focusY - CANVAS_PAD_H) * (zoomLevel / oldZoom) - my;
+  updateViewport();
+}, { passive: false });
 
 // =============================================================================
 // SELECTION D'UN PIXEL (clic → selectionner, puis couleur, puis confirmer)
@@ -1590,6 +1600,8 @@ function snapSheet(targetY, animate = true) {
 
 // Attacher le drag sur la zone de la poignee (les 40px du haut de la sheet)
 bottomSheet.addEventListener("pointerdown", (e) => {
+  // Ne pas capturer le drag si on clique sur un bouton interactif
+  if (e.target.closest(".ctrl-btn, button, input")) return;
   const sheetRect = bottomSheet.getBoundingClientRect();
   const controls = bottomSheet.querySelector(".canvas-controls");
   const grabZone = controls

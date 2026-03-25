@@ -1232,3 +1232,64 @@ input:focus { border-color: #222; }
 .crop-handle-tr { top: -11px; right: -11px; cursor: nesw-resize; }
 .crop-handle-bl { bottom: -11px; left: -11px; cursor: nesw-resize; }
 .crop-handle-br { bottom: -11px; right: -11px; cursor: nwse-resize; }
+
+/* =============================================================================
+   DESKTOP — adaptations pour ecrans larges (>600px)
+   ============================================================================= */
+
+@media (min-width: 600px) {
+
+  /* --- Ecrans de login : contenu centre, largeur limitee --- */
+  .app-logo {
+    max-width: 480px;
+    width: 100%;
+    align-self: center;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+  }
+
+  .hero-visuel {
+    max-width: 480px;
+    align-self: center;
+  }
+
+  .form {
+    max-width: 480px;
+    align-self: center;
+  }
+
+  .id-reveal-content {
+    max-width: 480px;
+    align-self: center;
+  }
+
+  /* --- Game screen : header et tabs centres --- */
+  .tabs {
+    max-width: 480px;
+  }
+
+  /* --- Bottom sheet : centree avec largeur limitee --- */
+  .bottom-sheet {
+    left: 0;
+    right: 0;
+    max-width: 480px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* --- Contenu des tabs equipe : limite en largeur --- */
+  #tab-team .teams-list,
+  #tab-team .team-header,
+  #tab-team .members-list,
+  #tab-team .separator,
+  #tab-team .overlay-section,
+  #tab-team .btn-toggle-create,
+  #tab-team-detail .detail-header,
+  #tab-team-detail .members-list,
+  #tab-team-detail .separator,
+  #tab-team-detail .overlay-section,
+  #tab-team-detail .btn-toggle-create {
+    max-width: 480px;
+    width: 100%;
+  }
+}

@@ -73,6 +73,8 @@ const CANVAS_PAD_BOTTOM = 200;
 
 let touchState = null;
 let mouseDrag = null;
+let adminMode = "move"; // "move" ou "draw"
+const btnModeToggle = document.getElementById("btn-mode-toggle");
 
 // =============================================================================
 // TABS
@@ -326,14 +328,30 @@ function updateViewport() {
   canvasEl.style.height = scaledH + "px";
 
   const visibleH = ch - sheetVisibleH - SHEET_CLEARANCE;
-  panX = Math.max(0, Math.min(panX, Math.max(0, worldW - cw)));
-  panY = Math.max(0, Math.min(panY, Math.max(0, CANVAS_PAD_H + scaledH - visibleH)));
+  const overflowX = worldW - cw;
+  const overflowY = CANVAS_PAD_H + scaledH - visibleH;
+  if (overflowX <= 0) { panX = overflowX / 2; }
+  else { panX = Math.max(0, Math.min(panX, overflowX)); }
+  if (overflowY <= 0) { panY = overflowY / 2; }
+  else { panY = Math.max(0, Math.min(panY, overflowY)); }
   canvasViewport.style.transform = `translate(${-panX}px, ${-panY}px)`;
 
   const ratio = zoomLevel / CANVAS_FILL_ZOOM;
   zoomLevelEl.textContent = (ratio >= 1 ? Math.round(ratio) : Math.round(ratio * 10) / 10) + "x";
   updatePixelCursor();
 }
+
+// =============================================================================
+// MODE TOGGLE (move / draw)
+// =============================================================================
+
+btnModeToggle.addEventListener("click", () => {
+  adminMode = adminMode === "move" ? "draw" : "move";
+  btnModeToggle.textContent = adminMode === "move" ? "✋" : "✏️";
+  btnModeToggle.className = "ctrl-btn mode-" + adminMode;
+  btnModeToggle.title = adminMode === "move" ? "Mode deplacement" : "Mode dessin";
+  canvasEl.style.cursor = adminMode === "move" ? "grab" : "crosshair";
+});
 
 // =============================================================================
 // ZOOM BUTTONS
@@ -426,16 +444,20 @@ canvasContainer.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 canvasContainer.addEventListener("mousedown", (e) => {
-  if (e.button === 1 || e.button === 2) {
-    mouseDrag = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY };
+  // Middle/right click always pans, left click pans only in move mode
+  if (e.button === 1 || e.button === 2 || (e.button === 0 && adminMode === "move")) {
+    mouseDrag = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY, moved: false };
     e.preventDefault();
   }
 });
 
 window.addEventListener("mousemove", (e) => {
   if (mouseDrag) {
-    panX = mouseDrag.startPanX - (e.clientX - mouseDrag.startX);
-    panY = mouseDrag.startPanY - (e.clientY - mouseDrag.startY);
+    const dx = e.clientX - mouseDrag.startX;
+    const dy = e.clientY - mouseDrag.startY;
+    if (Math.abs(dx) > 3 || Math.abs(dy) > 3) mouseDrag.moved = true;
+    panX = mouseDrag.startPanX - dx;
+    panY = mouseDrag.startPanY - dy;
     updateViewport();
     return;
   }
@@ -450,7 +472,7 @@ window.addEventListener("mouseup", () => { mouseDrag = null; });
 canvasContainer.addEventListener("contextmenu", (e) => e.preventDefault());
 
 canvasContainer.addEventListener("click", (e) => {
-  if (e.button === 0) handlePixelTap(e.clientX, e.clientY);
+  if (e.button === 0 && adminMode === "draw") handlePixelTap(e.clientX, e.clientY);
 });
 
 function handlePixelTap(clientX, clientY) {

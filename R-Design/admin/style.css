@@ -166,6 +166,17 @@
   flex-shrink: 0;
 }
 
+/* Bouton toggle mode draw/move */
+#btn-mode-toggle {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+#btn-mode-toggle.mode-draw {
+  background: #3690EA22;
+  border-color: #3690EA;
+  color: #3690EA;
+}
+
 /* Tab detail equipe : meme style que #tab-team du controller */
 #tab-team-detail {
   overflow-y: auto;
@@ -173,4 +184,17 @@
   gap: 0.75rem;
   align-items: center;
   background: #f8f8f8;
+}
+
+/* Desktop : contenu des tabs admin limite en largeur */
+@media (min-width: 600px) {
+  .admin-tab-header,
+  #tab-players .members-list,
+  #tab-teams .teams-list,
+  #tab-team-detail .detail-header,
+  #tab-team-detail .members-list,
+  #tab-team-detail .overlay-section {
+    max-width: 480px;
+    width: 100%;
+  }
 }
