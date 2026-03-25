@@ -43,9 +43,33 @@ const canvasEl = document.getElementById("pixel-canvas");
 const ctx = canvasEl.getContext("2d");
 const pixelCursor = document.getElementById("pixel-cursor");
 const coordsText = document.getElementById("coords-text");
+const pixelPlacerText = document.getElementById("pixel-placer-text");
 const btnZoomIn = document.getElementById("btn-zoom-in");
 const btnZoomOut = document.getElementById("btn-zoom-out");
 const zoomLevelEl = document.getElementById("zoom-level");
+const btnToggleOverlay = document.getElementById("btn-toggle-overlay");
+
+// Overlay
+const overlayImg = document.getElementById("overlay-img");
+const overlayEditBar = document.getElementById("overlay-edit-bar");
+const overlayOpacitySlider = document.getElementById("overlay-opacity-slider");
+const btnOverlayScaleDown = document.getElementById("btn-overlay-scale-down");
+const btnOverlayScaleUp = document.getElementById("btn-overlay-scale-up");
+const btnOverlayCancel = document.getElementById("btn-overlay-cancel");
+const btnOverlayConfirm = document.getElementById("btn-overlay-confirm");
+const overlayFileInput = document.getElementById("overlay-file-input");
+const overlaySection = document.getElementById("overlay-section");
+
+// Crop modal
+const modalCrop = document.getElementById("modal-crop");
+const cropImg = document.getElementById("crop-img");
+const cropBox = document.getElementById("crop-box");
+const btnCropCancel = document.getElementById("btn-crop-cancel");
+const btnCropConfirm = document.getElementById("btn-crop-confirm");
+const overlayPreviewRow = document.getElementById("overlay-preview-row");
+const overlayThumbnail = document.getElementById("overlay-thumbnail");
+const btnOverlayAdd = document.getElementById("btn-overlay-add");
+const btnOverlayDelete = document.getElementById("btn-overlay-delete");
 
 // Palette & confirm
 const paletteEl = document.getElementById("palette");
@@ -99,6 +123,12 @@ let allTeams = {};
 let myTeamId = null;
 let selectedTeamColor = "#3690EA";
 let detailTeamId = null;
+
+// Overlay state
+let overlayVisible = true;       // toggle local (membre)
+let overlayEditMode = false;     // leader en train d'editer
+let overlayDraft = null;         // { imageData, x, y, scale, opacity } pendant edition
+let overlayConfirmed = null;     // dernier etat confirme (pour annulation)
 let isCreator = false;
 
 // Zoom/pan state
@@ -340,6 +370,8 @@ function updateViewport() {
 
   // Mettre a jour le curseur de selection
   updatePixelCursor();
+  // Recalculer la position de l'overlay apres changement de zoom/pan
+  refreshOverlayTransform();
 }
 
 function getZoomFocus() {
@@ -473,6 +505,8 @@ function handlePixelClick(e) {
   if (pixelX >= 0 && pixelX < canvasSize.width && pixelY >= 0 && pixelY < canvasSize.height) {
     selectedPixel = { x: pixelX, y: pixelY };
     coordsText.textContent = `(${pixelX}, ${pixelY})`;
+    pixelPlacerText.classList.add("hidden");
+    send("getPixelInfo", { x: pixelX, y: pixelY });
     updatePixelCursor();
     updateConfirmButton();
   }
@@ -682,6 +716,16 @@ function showTeamDetail(teamId) {
   btnDetailLeave.classList.toggle("hidden", !isMine);
   btnDetailJoin.textContent = myTeamId ? "Changer pour cette equipe" : "Rejoindre";
 
+  // Section template — visible uniquement pour le leader de cette equipe
+  const isLeaderOfThis = isMine && amCreator;
+  overlaySection.classList.toggle("hidden", !isLeaderOfThis);
+  if (isLeaderOfThis) {
+    const hasOverlay = !!team.overlay;
+    overlayPreviewRow.classList.toggle("hidden", !hasOverlay);
+    btnOverlayAdd.textContent = hasOverlay ? "Remplacer le template" : "+ Ajouter un template";
+    if (hasOverlay) overlayThumbnail.src = team.overlay.imageData;
+  }
+
   // Afficher le detail
   tabTeam.classList.add("hidden");
   tabTeamDetail.classList.remove("hidden");
@@ -742,6 +786,13 @@ function updateTeamUI() {
     displayTeam.style.background = "#00000010";
     displayTeam.style.color = "#888";
   }
+
+  // Bouton toggle overlay : visible si on est dans une equipe avec un overlay
+  const teamOverlay = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
+  btnToggleOverlay.classList.toggle("hidden", !teamOverlay);
+
+  // Rafraichir l'overlay affiche
+  if (!overlayEditMode) renderOverlay(teamOverlay);
 
   // Rafraichir le detail si ouvert
   if (detailTeamId && allTeams[detailTeamId]) {
@@ -847,6 +898,23 @@ ws.addEventListener("message", (event) => {
     // Pas utilise cote controller pour l'instant
   }
 
+  // --- Pixel info (qui a pose ce pixel) ---
+  if (type === "pixelInfo") {
+    if (selectedPixel && data.x === selectedPixel.x && data.y === selectedPixel.y) {
+      if (data.placedBy) {
+        const { pseudo, teamName, teamColor } = data.placedBy;
+        let html = `par <strong>${pseudo}</strong>`;
+        if (teamName) {
+          html += ` <span class="placer-team-dot" style="background:${teamColor}"></span> ${teamName}`;
+        }
+        pixelPlacerText.innerHTML = html;
+        pixelPlacerText.classList.remove("hidden");
+      } else {
+        pixelPlacerText.classList.add("hidden");
+      }
+    }
+  }
+
   // --- Team joined ---
   if (type === "teamJoined") {
     myTeamId = data.teamId;
@@ -858,12 +926,16 @@ ws.addEventListener("message", (event) => {
   // --- Team left ---
   if (type === "teamLeft") {
     myTeamId = null;
+    if (overlayEditMode) exitOverlayEditMode();
+    renderOverlay(null);
     updateTeamUI();
   }
 
   // --- Kicked ---
   if (type === "kicked") {
     myTeamId = null;
+    if (overlayEditMode) exitOverlayEditMode();
+    renderOverlay(null);
     updateTeamUI();
     showGameError(`Vous avez ete exclu de l'equipe "${data.teamName}"`);
   }
@@ -899,6 +971,395 @@ ws.addEventListener("message", (event) => {
 ws.addEventListener("close", () => {
   console.log("Connexion perdue. Rechargez la page.");
 });
+
+// =============================================================================
+// OVERLAY — RENDU
+// =============================================================================
+
+function renderOverlay(data) {
+  if (!data || !data.imageData || !overlayVisible) {
+    overlayImg.classList.add("hidden");
+    return;
+  }
+  overlayImg.src = data.imageData;
+  overlayImg.classList.remove("hidden");
+  applyOverlayTransform(data);
+}
+
+function applyOverlayTransform(data) {
+  const pixelSize = zoomLevel; // pixels CSS par pixel canvas
+  const canvasW = canvasSize.width;
+
+  // La taille naturelle de l'image est calculee au chargement
+  // scale 1 = l'image fait la largeur du canvas
+  const imgNaturalW = overlayImg.naturalWidth || 1;
+  const targetW = canvasW * data.scale * pixelSize;
+  const ratio = targetW / imgNaturalW;
+
+  const tx = data.x * pixelSize;
+  const ty = data.y * pixelSize;
+
+  overlayImg.style.transform = `translate(${tx}px, ${ty}px) scale(${ratio})`;
+  overlayImg.style.opacity = data.opacity;
+}
+
+// Recalculer la transform quand le zoom change (appelé depuis updateViewport)
+function refreshOverlayTransform() {
+  const src = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
+  if (src) applyOverlayTransform(src);
+}
+
+// =============================================================================
+// OVERLAY — TOGGLE VISIBILITE (membre, local)
+// =============================================================================
+
+btnToggleOverlay.addEventListener("click", () => {
+  overlayVisible = !overlayVisible;
+  btnToggleOverlay.style.opacity = overlayVisible ? "1" : "0.4";
+  const current = overlayEditMode ? overlayDraft : (myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null);
+  renderOverlay(current);
+});
+
+// =============================================================================
+// OVERLAY — IMPORT IMAGE (leader)
+// =============================================================================
+
+btnOverlayAdd.addEventListener("click", () => {
+  overlayFileInput.value = "";
+  overlayFileInput.click();
+});
+
+overlayFileInput.addEventListener("change", () => {
+  const file = overlayFileInput.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    openCropModal(e.target.result);
+  };
+  reader.readAsDataURL(file);
+});
+
+// =============================================================================
+// OVERLAY — MODE EDITION (leader)
+// =============================================================================
+
+function enterOverlayEditMode() {
+  overlayEditMode = true;
+  overlayVisible = true;
+
+  // Basculer sur l'onglet canvas
+  tabs.forEach(t => t.classList.remove("active"));
+  document.querySelector('.tab[data-tab="canvas"]').classList.add("active");
+  tabTeam.classList.add("hidden");
+  tabTeamDetail.classList.add("hidden");
+  tabCanvas.classList.remove("hidden");
+
+  canvasContainer.classList.add("overlay-edit-mode");
+  overlayEditBar.classList.remove("hidden");
+  overlayOpacitySlider.value = Math.round((overlayDraft.opacity || 0.5) * 100);
+
+  renderOverlay(overlayDraft);
+}
+
+function exitOverlayEditMode() {
+  overlayEditMode = false;
+  canvasContainer.classList.remove("overlay-edit-mode");
+  overlayEditBar.classList.add("hidden");
+  overlayDraft = null;
+}
+
+// Slider opacite
+overlayOpacitySlider.addEventListener("input", () => {
+  if (!overlayDraft) return;
+  overlayDraft.opacity = overlayOpacitySlider.value / 100;
+  applyOverlayTransform(overlayDraft);
+});
+
+// Scale
+btnOverlayScaleDown.addEventListener("click", () => {
+  if (!overlayDraft) return;
+  overlayDraft.scale = Math.max(0.1, +(overlayDraft.scale - 0.1).toFixed(2));
+  applyOverlayTransform(overlayDraft);
+});
+
+btnOverlayScaleUp.addEventListener("click", () => {
+  if (!overlayDraft) return;
+  overlayDraft.scale = Math.min(10, +(overlayDraft.scale + 0.1).toFixed(2));
+  applyOverlayTransform(overlayDraft);
+});
+
+// Confirmer
+btnOverlayConfirm.addEventListener("click", () => {
+  if (!overlayDraft) return;
+  send("setOverlay", { overlay: { ...overlayDraft } });
+  exitOverlayEditMode();
+});
+
+// Annuler
+btnOverlayCancel.addEventListener("click", () => {
+  exitOverlayEditMode();
+  renderOverlay(overlayConfirmed);
+});
+
+// Supprimer
+btnOverlayDelete.addEventListener("click", () => {
+  send("setOverlay", { overlay: null });
+  overlayDraft = null;
+  overlayConfirmed = null;
+  renderOverlay(null);
+  // Rafraichir le detail
+  if (detailTeamId) showTeamDetail(detailTeamId);
+});
+
+// =============================================================================
+// CROP MODAL
+// =============================================================================
+
+let cropSourceImg = null; // Image object chargée
+let cropImgOffsetX = 0;   // position de l'image dans .crop-area
+let cropImgOffsetY = 0;
+let cropImgRenderedW = 0;
+let cropImgRenderedH = 0;
+
+// box en coordonnées image naturelle
+let cropBoxNX = 0;
+let cropBoxNY = 0;
+let cropBoxNW = 0;
+let cropBoxNH = 0;
+
+function openCropModal(dataUrl) {
+  cropSourceImg = new Image();
+  cropSourceImg.onload = () => {
+    cropImg.src = dataUrl;
+    modalCrop.classList.remove("hidden");
+
+    // Attendre que l'image soit rendue pour connaître ses dimensions CSS
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const rect = cropImg.getBoundingClientRect();
+        const areaRect = cropImg.parentElement.getBoundingClientRect();
+        cropImgOffsetX = rect.left - areaRect.left;
+        cropImgOffsetY = rect.top - areaRect.top;
+        cropImgRenderedW = rect.width;
+        cropImgRenderedH = rect.height;
+
+        // Boite initiale : 80% centree
+        const margin = 0.1;
+        cropBoxNX = Math.round(cropSourceImg.naturalWidth * margin);
+        cropBoxNY = Math.round(cropSourceImg.naturalHeight * margin);
+        cropBoxNW = Math.round(cropSourceImg.naturalWidth * (1 - 2 * margin));
+        cropBoxNH = Math.round(cropSourceImg.naturalHeight * (1 - 2 * margin));
+        updateCropBoxDOM();
+      });
+    });
+  };
+  cropSourceImg.src = dataUrl;
+}
+
+// Conversion coordonnées naturelles → CSS (relative à .crop-area)
+function natToCss(nx, ny, nw, nh) {
+  const scaleX = cropImgRenderedW / cropSourceImg.naturalWidth;
+  const scaleY = cropImgRenderedH / cropSourceImg.naturalHeight;
+  return {
+    left: cropImgOffsetX + nx * scaleX,
+    top:  cropImgOffsetY + ny * scaleY,
+    width: nw * scaleX,
+    height: nh * scaleY,
+  };
+}
+
+function updateCropBoxDOM() {
+  if (!cropSourceImg) return;
+  const { left, top, width, height } = natToCss(cropBoxNX, cropBoxNY, cropBoxNW, cropBoxNH);
+  cropBox.style.left   = left + "px";
+  cropBox.style.top    = top  + "px";
+  cropBox.style.width  = width + "px";
+  cropBox.style.height = height + "px";
+}
+
+// --- Drag de la boite (déplacer) ---
+let cropDragActive = false;
+let cropDragStartX = 0;
+let cropDragStartY = 0;
+let cropDragStartNX = 0;
+let cropDragStartNY = 0;
+
+cropBox.addEventListener("pointerdown", (e) => {
+  if (e.target !== cropBox) return; // ignorer les handles
+  e.preventDefault();
+  e.stopPropagation();
+  cropBox.setPointerCapture(e.pointerId);
+  cropDragActive = true;
+  cropDragStartX = e.clientX;
+  cropDragStartY = e.clientY;
+  cropDragStartNX = cropBoxNX;
+  cropDragStartNY = cropBoxNY;
+});
+
+cropBox.addEventListener("pointermove", (e) => {
+  if (!cropDragActive) return;
+  e.preventDefault();
+  const scaleX = cropSourceImg.naturalWidth / cropImgRenderedW;
+  const scaleY = cropSourceImg.naturalHeight / cropImgRenderedH;
+  const dx = (e.clientX - cropDragStartX) * scaleX;
+  const dy = (e.clientY - cropDragStartY) * scaleY;
+
+  cropBoxNX = Math.max(0, Math.min(cropSourceImg.naturalWidth  - cropBoxNW, Math.round(cropDragStartNX + dx)));
+  cropBoxNY = Math.max(0, Math.min(cropSourceImg.naturalHeight - cropBoxNH, Math.round(cropDragStartNY + dy)));
+  updateCropBoxDOM();
+});
+
+cropBox.addEventListener("pointerup",   () => { cropDragActive = false; });
+cropBox.addEventListener("pointercancel", () => { cropDragActive = false; });
+
+// --- Drag des handles (redimensionner) ---
+let handleDragActive = false;
+let handleCorner = null;
+let handleStartX = 0;
+let handleStartY = 0;
+let handleStartBox = null;
+
+document.querySelectorAll(".crop-handle").forEach((handle) => {
+  handle.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handle.setPointerCapture(e.pointerId);
+    handleDragActive = true;
+    handleCorner = handle.dataset.corner;
+    handleStartX = e.clientX;
+    handleStartY = e.clientY;
+    handleStartBox = { x: cropBoxNX, y: cropBoxNY, w: cropBoxNW, h: cropBoxNH };
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!handleDragActive) return;
+    e.preventDefault();
+    const scaleX = cropSourceImg.naturalWidth  / cropImgRenderedW;
+    const scaleY = cropSourceImg.naturalHeight / cropImgRenderedH;
+    const dx = (e.clientX - handleStartX) * scaleX;
+    const dy = (e.clientY - handleStartY) * scaleY;
+    const MIN = 20; // taille min en pixels naturels
+
+    let { x, y, w, h } = handleStartBox;
+
+    if (handleCorner === "tl") {
+      const newX = Math.min(x + w - MIN, x + dx);
+      const newY = Math.min(y + h - MIN, y + dy);
+      w = w - (newX - x);
+      h = h - (newY - y);
+      x = newX; y = newY;
+    } else if (handleCorner === "tr") {
+      const newW = Math.max(MIN, w + dx);
+      const newY = Math.min(y + h - MIN, y + dy);
+      h = h - (newY - y);
+      w = newW; y = newY;
+    } else if (handleCorner === "bl") {
+      const newX = Math.min(x + w - MIN, x + dx);
+      const newH = Math.max(MIN, h + dy);
+      w = w - (newX - x);
+      x = newX; h = newH;
+    } else if (handleCorner === "br") {
+      w = Math.max(MIN, w + dx);
+      h = Math.max(MIN, h + dy);
+    }
+
+    // Clamp dans les limites de l'image
+    x = Math.max(0, x);
+    y = Math.max(0, y);
+    w = Math.min(cropSourceImg.naturalWidth  - x, w);
+    h = Math.min(cropSourceImg.naturalHeight - y, h);
+
+    cropBoxNX = Math.round(x);
+    cropBoxNY = Math.round(y);
+    cropBoxNW = Math.round(w);
+    cropBoxNH = Math.round(h);
+    updateCropBoxDOM();
+  });
+
+  handle.addEventListener("pointerup",     () => { handleDragActive = false; });
+  handle.addEventListener("pointercancel", () => { handleDragActive = false; });
+});
+
+// --- Confirmer le crop ---
+btnCropConfirm.addEventListener("click", () => {
+  if (!cropSourceImg) return;
+
+  // Extraire la region croppée
+  const MAX = 800;
+  let w = cropBoxNW;
+  let h = cropBoxNH;
+  if (w > MAX || h > MAX) {
+    const r = Math.min(MAX / w, MAX / h);
+    w = Math.round(w * r);
+    h = Math.round(h * r);
+  }
+  const tmpCanvas = document.createElement("canvas");
+  tmpCanvas.width = w;
+  tmpCanvas.height = h;
+  tmpCanvas.getContext("2d").drawImage(
+    cropSourceImg,
+    cropBoxNX, cropBoxNY, cropBoxNW, cropBoxNH,
+    0, 0, w, h
+  );
+  const compressed = tmpCanvas.toDataURL("image/jpeg", 0.8);
+
+  modalCrop.classList.add("hidden");
+  cropSourceImg = null;
+
+  const existing = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
+  overlayDraft = {
+    imageData: compressed,
+    x: existing ? existing.x : 0,
+    y: existing ? existing.y : 0,
+    scale: existing ? existing.scale : 1,
+    opacity: existing ? existing.opacity : 0.5,
+  };
+  overlayConfirmed = existing;
+  enterOverlayEditMode();
+});
+
+// --- Annuler le crop ---
+btnCropCancel.addEventListener("click", () => {
+  modalCrop.classList.add("hidden");
+  cropSourceImg = null;
+});
+
+// =============================================================================
+// OVERLAY — DRAG EN MODE EDITION (1 doigt deplace l'overlay)
+// =============================================================================
+
+let overlayDragActive = false;
+let overlayDragStartX = 0;
+let overlayDragStartY = 0;
+let overlayDragStartOX = 0;
+let overlayDragStartOY = 0;
+
+canvasContainer.addEventListener("pointerdown", (e) => {
+  if (!overlayEditMode || e.isPrimary === false) return;
+  // Si un seul pointeur (pas pinch), on drag l'overlay
+  if (e.pointerType === "touch" && e.isPrimary) {
+    overlayDragActive = true;
+    overlayDragStartX = e.clientX;
+    overlayDragStartY = e.clientY;
+    overlayDragStartOX = overlayDraft.x;
+    overlayDragStartOY = overlayDraft.y;
+    e.stopImmediatePropagation(); // empeche le pan canvas
+  }
+}, true); // capture phase pour passer avant le pan
+
+canvasContainer.addEventListener("pointermove", (e) => {
+  if (!overlayDragActive || !overlayEditMode) return;
+  const dx = (e.clientX - overlayDragStartX) / zoomLevel;
+  const dy = (e.clientY - overlayDragStartY) / zoomLevel;
+  overlayDraft.x = overlayDragStartOX + dx;
+  overlayDraft.y = overlayDragStartOY + dy;
+  applyOverlayTransform(overlayDraft);
+}, true);
+
+canvasContainer.addEventListener("pointerup", () => {
+  overlayDragActive = false;
+}, true);
 
 // =============================================================================
 // INIT VIEWPORT AU CHARGEMENT

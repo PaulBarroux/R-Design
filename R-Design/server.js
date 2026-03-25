@@ -58,7 +58,7 @@ const canvas = [];
 for (let y = 0; y < CANVAS_HEIGHT; y++) {
   canvas[y] = [];
   for (let x = 0; x < CANVAS_WIDTH; x++) {
-    canvas[y][x] = (x + y) % 2 === 0 ? "#FFFFFF" : "#D4D7D9";
+    canvas[y][x] = (x + y) % 2 === 0 ? "#FFFFFF" : "#EBEBEB";
   }
 }
 
@@ -476,9 +476,26 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      if (data.overlay === null) { team.overlay = null; }
-      else if (Array.isArray(data.overlay) && data.overlay.length === CANVAS_HEIGHT) { team.overlay = data.overlay; }
-      else { send(ws, "gameError", { message: "Format d'overlay invalide." }); return; }
+      if (data.overlay === null) {
+        team.overlay = null;
+      } else {
+        const { imageData, x, y, scale, opacity } = data.overlay;
+        if (typeof imageData !== "string" || !imageData.startsWith("data:image/")) {
+          send(ws, "gameError", { message: "Format d'image invalide." });
+          return;
+        }
+        if (imageData.length > 700000) {
+          send(ws, "gameError", { message: "Image trop grande (max ~500 Ko)." });
+          return;
+        }
+        team.overlay = {
+          imageData,
+          x: typeof x === "number" ? x : 0,
+          y: typeof y === "number" ? y : 0,
+          scale: typeof scale === "number" ? Math.max(0.1, Math.min(10, scale)) : 1,
+          opacity: typeof opacity === "number" ? Math.max(0, Math.min(1, opacity)) : 0.5,
+        };
+      }
 
       broadcast("teamsUpdate", getTeamsPublicData());
     }
@@ -491,14 +508,19 @@ wss.on("connection", (ws) => {
       for (let i = pixelHistory.length - 1; i >= 0; i--) {
         if (pixelHistory[i].x === x && pixelHistory[i].y === y) { lastPlacer = pixelHistory[i]; break; }
       }
-      send(ws, "pixelInfo", {
-        x, y, color: canvas[y][x],
-        placedBy: lastPlacer ? {
+      let placedBy = null;
+      if (lastPlacer) {
+        const p = players[lastPlacer.playerId];
+        const team = p && p.teamId && teams[p.teamId] ? teams[p.teamId] : null;
+        placedBy = {
           playerId: lastPlacer.playerId,
-          pseudo: players[lastPlacer.playerId]?.pseudo || "???",
+          pseudo: p?.pseudo || "???",
           timestamp: lastPlacer.timestamp,
-        } : null,
-      });
+          teamName: team ? team.name : null,
+          teamColor: team ? team.color : null,
+        };
+      }
+      send(ws, "pixelInfo", { x, y, color: canvas[y][x], placedBy });
     }
 
     // === SEARCH TEAMS ===

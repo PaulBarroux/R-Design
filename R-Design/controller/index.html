@@ -77,8 +77,27 @@
         <div id="canvas-container">
           <div id="canvas-viewport">
             <canvas id="pixel-canvas"></canvas>
+            <!-- Overlay image d'equipe -->
+            <img id="overlay-img" class="overlay-img hidden" draggable="false" />
             <!-- Curseur de selection (pixel selectionne) -->
             <div id="pixel-cursor" class="hidden"></div>
+          </div>
+        </div>
+
+        <!-- Barre d'edition overlay (visible uniquement en mode edition) -->
+        <div id="overlay-edit-bar" class="overlay-edit-bar hidden">
+          <div class="overlay-edit-scale">
+            <button id="btn-overlay-scale-down" class="ctrl-btn">−</button>
+            <span class="overlay-edit-label">Taille</span>
+            <button id="btn-overlay-scale-up" class="ctrl-btn">+</button>
+          </div>
+          <div class="overlay-edit-opacity">
+            <span class="overlay-edit-label">Opacite</span>
+            <input type="range" id="overlay-opacity-slider" min="5" max="90" value="50" />
+          </div>
+          <div class="overlay-edit-actions">
+            <button id="btn-overlay-cancel" class="btn-secondary">Annuler</button>
+            <button id="btn-overlay-confirm" class="btn-primary">Confirmer</button>
           </div>
         </div>
 
@@ -88,7 +107,11 @@
           <span id="zoom-level">1x</span>
           <button id="btn-zoom-in" class="ctrl-btn">+</button>
           <span class="spacer"></span>
-          <span id="coords-text">—</span>
+          <button id="btn-toggle-overlay" class="ctrl-btn hidden" title="Afficher/masquer l'overlay">👁</button>
+          <div class="pixel-info">
+            <span id="coords-text">—</span>
+            <span id="pixel-placer-text" class="pixel-placer hidden"></span>
+          </div>
         </div>
 
         <!-- Palette de couleurs -->
@@ -161,7 +184,40 @@
         <button id="btn-detail-join" class="btn-primary full-width">Rejoindre</button>
         <button id="btn-detail-leave" class="btn-danger full-width hidden">Quitter l'equipe</button>
 
+        <!-- Section template (visible uniquement pour le leader) -->
+        <div id="overlay-section" class="overlay-section hidden">
+          <div class="separator">Template</div>
+          <div id="overlay-preview-row" class="overlay-preview-row hidden">
+            <img id="overlay-thumbnail" class="overlay-thumbnail" />
+            <button id="btn-overlay-delete" class="btn-kick">Supprimer</button>
+          </div>
+          <button id="btn-overlay-add" class="btn-toggle-create">+ Ajouter un template</button>
+        </div>
+
       </div>
+
+      <!-- Input file cache pour import image -->
+      <input type="file" id="overlay-file-input" accept="image/*" style="display:none" />
+
+    <!-- ================================================================
+         MODAL CROP
+         ================================================================ -->
+    <div id="modal-crop" class="modal-crop hidden">
+      <div class="crop-header">
+        <button id="btn-crop-cancel" class="btn-back">Annuler</button>
+        <span class="crop-title">Recadrer</span>
+        <button id="btn-crop-confirm" class="btn-primary" style="width:auto;padding:0.4rem 1rem;">Appliquer</button>
+      </div>
+      <div id="crop-area" class="crop-area">
+        <img id="crop-img" class="crop-img" draggable="false" />
+        <div id="crop-box" class="crop-box">
+          <div class="crop-handle crop-handle-tl" data-corner="tl"></div>
+          <div class="crop-handle crop-handle-tr" data-corner="tr"></div>
+          <div class="crop-handle crop-handle-bl" data-corner="bl"></div>
+          <div class="crop-handle crop-handle-br" data-corner="br"></div>
+        </div>
+      </div>
+    </div>
 
     </div>
 
