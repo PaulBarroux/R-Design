@@ -517,11 +517,13 @@ wss.on("connection", (ws) => {
       if (!ws._isAdmin) return;
       const { x, y, color } = data;
       if (!COLOR_PALETTE.includes(color)) return;
+      const adminBombTs = Date.now();
       for (let dy = 0; dy < 5; dy++) {
         for (let dx = 0; dx < 5; dx++) {
           const px = x + dx, py = y + dy;
           if (px >= 0 && px < CANVAS_WIDTH && py >= 0 && py < CANVAS_HEIGHT) {
             canvas[py][px] = color;
+            pixelHistory.push({ playerId: null, x: px, y: py, color, timestamp: adminBombTs });
             broadcastPixelUpdate(px, py, color, null);
           }
         }
@@ -572,8 +574,11 @@ wss.on("connection", (ws) => {
         }
       }
       log.pixel(`[BOMBE] ${player.pseudo} (${x},${y}) ${color} — ${pixels.length}px`);
-      // Broadcast tous les pixels modifies
-      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, color, playerId);
+      const bombTs = Date.now();
+      for (const p of pixels) {
+        pixelHistory.push({ playerId, x: p.x, y: p.y, color, timestamp: bombTs });
+        broadcastPixelUpdate(p.x, p.y, color, playerId);
+      }
       send(ws, "powerUsed", { power: "bomb", goldPixels: player.goldPixels });
       updatePlayerActivity(playerId);
       return;
@@ -704,7 +709,11 @@ wss.on("connection", (ws) => {
       }
 
       team.diamondPixels -= POWER_COLOR_REPLACE_COST;
-      for (const p of pixels) canvas[p.y][p.x] = newColor;
+      const replaceTs = Date.now();
+      for (const p of pixels) {
+        canvas[p.y][p.x] = newColor;
+        pixelHistory.push({ playerId, x: p.x, y: p.y, color: newColor, timestamp: replaceTs });
+      }
       log.pixel(`[REMPLACEMENT] ${player.pseudo} (${x},${y}) ${targetColor}→${newColor} — ${pixels.length}px`);
       for (const p of pixels) broadcastPixelUpdate(p.x, p.y, newColor, playerId);
       send(ws, "powerUsed", { power: "colorReplace", diamondPixels: team.diamondPixels });
@@ -963,6 +972,16 @@ wss.on("connection", (ws) => {
       }
 
       broadcast("teamsUpdate", getTeamsPublicData());
+    }
+
+    // === ADMIN GET HISTORY (timelapse) ===
+    if (type === "adminGetHistory") {
+      if (!ws._isAdmin) return;
+      send(ws, "historyData", {
+        history: pixelHistory,
+        canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+      });
+      return;
     }
 
     // === GET PIXEL INFO ===

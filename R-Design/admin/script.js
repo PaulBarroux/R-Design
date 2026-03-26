@@ -19,6 +19,7 @@ const tabCanvas       = document.getElementById("tab-canvas");
 const tabPlayers      = document.getElementById("tab-players");
 const tabTeams        = document.getElementById("tab-teams");
 const tabTeamDetail   = document.getElementById("tab-team-detail");
+const tabTimelapse    = document.getElementById("tab-timelapse");
 
 const canvasContainer = document.getElementById("canvas-container");
 const canvasViewport  = document.getElementById("canvas-viewport");
@@ -47,6 +48,18 @@ const overlayThumbnail   = document.getElementById("overlay-thumbnail");
 const btnOverlayDelete   = document.getElementById("btn-overlay-delete");
 const btnOverlayAdd      = document.getElementById("btn-overlay-add");
 const overlayFileInput   = document.getElementById("overlay-file-input");
+
+// Timelapse
+const tlCanvasEl        = document.getElementById("timelapse-canvas");
+const tlCtx             = tlCanvasEl ? tlCanvasEl.getContext("2d") : null;
+const tlProgressBar     = document.getElementById("tl-progress-bar");
+const tlProgressFill    = document.getElementById("tl-progress-fill");
+const tlProgressThumb   = document.getElementById("tl-progress-thumb");
+const tlTimeDisplay     = document.getElementById("tl-time-display");
+const tlPixelCount      = document.getElementById("tl-pixel-count");
+const btnTlPlay         = document.getElementById("btn-tl-play");
+const btnTlRestart      = document.getElementById("btn-tl-restart");
+const tlSpeedBtns       = document.querySelectorAll(".tl-speed-btn");
 
 const adminOverlaysContainer = document.getElementById("admin-overlays-container");
 const templatesPanel         = document.getElementById("templates-panel");
@@ -88,6 +101,20 @@ let adminMode = "move"; // "move" | "draw" | "bomb"
 const btnModeToggle = document.getElementById("btn-mode-toggle");
 const btnBombMode   = document.getElementById("btn-bomb-mode");
 
+// Timelapse state
+let tlHistory       = [];   // tableau trié par timestamp
+let tlIndex         = 0;    // index courant dans l'histoire
+let tlGameStart     = 0;    // timestamp du premier pixel
+let tlGameEnd       = 0;    // timestamp du dernier pixel
+let tlCurrentMs     = 0;    // position courante en ms de temps de jeu
+let tlSpeed         = 200;  // multiplicateur de vitesse
+let tlPlaying       = false;
+let tlRAF           = null;
+let tlLastRAFTime   = null;
+let tlCanvasW       = 200;
+let tlCanvasH       = 200;
+let tlScrubbing     = false;
+
 // =============================================================================
 // TABS
 // =============================================================================
@@ -99,12 +126,13 @@ tabs.forEach((tab) => {
     const target = tab.dataset.tab;
     tabCanvas.classList.toggle("hidden", target !== "canvas");
     tabPlayers.classList.toggle("hidden", target !== "players");
-    // Quitter les equipes : fermer le detail
     if (target !== "teams") {
       tabTeamDetail.classList.add("hidden");
       detailTeamId = null;
     }
     tabTeams.classList.toggle("hidden", target !== "teams");
+    tabTimelapse.classList.toggle("hidden", target !== "timelapse");
+    if (target === "timelapse") openTimelapse();
   });
 });
 
@@ -231,6 +259,9 @@ function connectWS() {
     }
     if (type === "error" || type === "gameError") {
       showGameError(data.message);
+    }
+    if (type === "historyData") {
+      handleHistoryData(data);
     }
   });
 }
@@ -837,4 +868,188 @@ function updateAllAdminOverlays() {
   for (const teamId of Object.keys(adminOverlayEls)) {
     updateAdminOverlayEl(teamId);
   }
+}
+
+// =============================================================================
+// TIMELAPSE
+// =============================================================================
+
+function openTimelapse() {
+  // Demander l'historique au serveur
+  send("adminGetHistory", {});
+}
+
+function initTlCanvas(w, h) {
+  tlCanvasW = w; tlCanvasH = h;
+  tlCanvasEl.width = w;
+  tlCanvasEl.height = h;
+  tlCtx.fillStyle = "#fff";
+  tlCtx.fillRect(0, 0, w, h);
+}
+
+// Rebuild canvas from scratch up to index i (batch via ImageData)
+function tlRebuildTo(i) {
+  const imgData = tlCtx.createImageData(tlCanvasW, tlCanvasH);
+  for (let k = 0; k < imgData.data.length; k += 4) {
+    imgData.data[k] = imgData.data[k+1] = imgData.data[k+2] = 255;
+    imgData.data[k+3] = 255;
+  }
+  for (let k = 0; k < i; k++) {
+    const p = tlHistory[k];
+    if (!p || !p.color) continue;
+    const idx = (p.y * tlCanvasW + p.x) * 4;
+    imgData.data[idx]   = parseInt(p.color.slice(1, 3), 16);
+    imgData.data[idx+1] = parseInt(p.color.slice(3, 5), 16);
+    imgData.data[idx+2] = parseInt(p.color.slice(5, 7), 16);
+    imgData.data[idx+3] = 255;
+  }
+  tlCtx.putImageData(imgData, 0, 0);
+  tlIndex = i;
+}
+
+// Draw a single pixel incrementally (during playback)
+function tlDrawPixel(p) {
+  if (!p || !p.color) return;
+  const r = parseInt(p.color.slice(1, 3), 16);
+  const g = parseInt(p.color.slice(3, 5), 16);
+  const b = parseInt(p.color.slice(5, 7), 16);
+  const img = tlCtx.createImageData(1, 1);
+  img.data[0] = r; img.data[1] = g; img.data[2] = b; img.data[3] = 255;
+  tlCtx.putImageData(img, p.x, p.y);
+}
+
+function tlUpdateUI() {
+  if (tlHistory.length === 0) return;
+  const totalMs = tlGameEnd - tlGameStart || 1;
+  const pct = Math.min(1, tlCurrentMs / totalMs);
+  tlProgressFill.style.width  = (pct * 100) + "%";
+  tlProgressThumb.style.left  = (pct * 100) + "%";
+  tlTimeDisplay.textContent   = tlFmtTime(tlCurrentMs) + " / " + tlFmtTime(totalMs);
+  tlPixelCount.textContent    = tlIndex + " / " + tlHistory.length + " pixels";
+  btnTlPlay.textContent       = tlPlaying ? "⏸" : "▶";
+}
+
+function tlFmtTime(ms) {
+  const s  = Math.floor(ms / 1000);
+  const h  = Math.floor(s / 3600);
+  const m  = Math.floor((s % 3600) / 60);
+  const ss = s % 60;
+  if (h > 0) return h + ":" + String(m).padStart(2,"0") + ":" + String(ss).padStart(2,"0");
+  return m + ":" + String(ss).padStart(2,"0");
+}
+
+function tlSeekToMs(ms) {
+  tlCurrentMs = Math.max(0, Math.min(tlGameEnd - tlGameStart, ms));
+  const targetTs = tlGameStart + tlCurrentMs;
+  // Find index of first pixel after targetTs
+  let i = 0;
+  while (i < tlHistory.length && tlHistory[i].timestamp <= targetTs) i++;
+  tlRebuildTo(i);
+  tlUpdateUI();
+}
+
+function tlPlay() {
+  if (tlHistory.length === 0) return;
+  if (tlIndex >= tlHistory.length) {
+    tlRebuildTo(0);
+    tlCurrentMs = 0;
+  }
+  tlPlaying = true;
+  tlLastRAFTime = null;
+  btnTlPlay.textContent = "⏸";
+  tlRAF = requestAnimationFrame(tlTick);
+}
+
+function tlPause() {
+  tlPlaying = false;
+  if (tlRAF) { cancelAnimationFrame(tlRAF); tlRAF = null; }
+  btnTlPlay.textContent = "▶";
+}
+
+function tlTick(now) {
+  if (!tlPlaying) return;
+  if (tlLastRAFTime === null) tlLastRAFTime = now;
+  const dtReal = now - tlLastRAFTime;    // ms réels écoulés
+  tlLastRAFTime = now;
+  const dtGame = dtReal * tlSpeed;       // ms de jeu à avancer
+  tlCurrentMs = Math.min(tlCurrentMs + dtGame, tlGameEnd - tlGameStart);
+
+  const targetTs = tlGameStart + tlCurrentMs;
+  // Draw pixels up to targetTs
+  while (tlIndex < tlHistory.length && tlHistory[tlIndex].timestamp <= targetTs) {
+    tlDrawPixel(tlHistory[tlIndex]);
+    tlIndex++;
+  }
+  tlUpdateUI();
+
+  if (tlIndex >= tlHistory.length || tlCurrentMs >= tlGameEnd - tlGameStart) {
+    tlPause();
+    return;
+  }
+  tlRAF = requestAnimationFrame(tlTick);
+}
+
+// --- Boutons ---
+btnTlPlay.addEventListener("click", () => {
+  if (tlPlaying) tlPause(); else tlPlay();
+});
+
+btnTlRestart.addEventListener("click", () => {
+  tlPause();
+  tlRebuildTo(0);
+  tlCurrentMs = 0;
+  tlUpdateUI();
+});
+
+tlSpeedBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    tlSpeed = parseInt(btn.dataset.speed);
+    tlSpeedBtns.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  });
+});
+
+// --- Scrubbing sur la progress bar ---
+function tlGetMsFromEvent(e) {
+  const rect = tlProgressBar.getBoundingClientRect();
+  const pct  = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+  return pct * (tlGameEnd - tlGameStart);
+}
+
+tlProgressBar.addEventListener("pointerdown", (e) => {
+  tlScrubbing = true;
+  tlProgressBar.setPointerCapture(e.pointerId);
+  const wasPLaying = tlPlaying;
+  tlPause();
+  tlSeekToMs(tlGetMsFromEvent(e));
+  tlProgressBar._wasPlaying = wasPLaying;
+});
+
+tlProgressBar.addEventListener("pointermove", (e) => {
+  if (!tlScrubbing) return;
+  tlSeekToMs(tlGetMsFromEvent(e));
+});
+
+tlProgressBar.addEventListener("pointerup", (e) => {
+  if (!tlScrubbing) return;
+  tlScrubbing = false;
+  tlSeekToMs(tlGetMsFromEvent(e));
+  if (tlProgressBar._wasPlaying) tlPlay();
+});
+
+// --- Réception des données depuis le serveur ---
+// (à appeler dans le handler WS message)
+function handleHistoryData(data) {
+  tlPause();
+  tlHistory = (data.history || []).slice().sort((a, b) => a.timestamp - b.timestamp);
+  if (tlHistory.length === 0) {
+    tlTimeDisplay.textContent = "Aucun pixel";
+    return;
+  }
+  tlGameStart = tlHistory[0].timestamp;
+  tlGameEnd   = tlHistory[tlHistory.length - 1].timestamp;
+  tlCurrentMs = 0;
+  const sz = data.canvasSize || { width: 200, height: 200 };
+  initTlCanvas(sz.width, sz.height);
+  tlUpdateUI();
 }

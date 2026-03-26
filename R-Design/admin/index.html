@@ -44,6 +44,7 @@
           <button class="tab active" data-tab="canvas">Canva</button>
           <button class="tab" data-tab="players">Joueurs</button>
           <button class="tab" data-tab="teams">Equipes</button>
+          <button class="tab" data-tab="timelapse">Timelapse</button>
         </div>
         <div id="game-error" class="error-msg hidden"></div>
       </div>
@@ -141,6 +142,44 @@
             <button id="btn-overlay-delete" class="btn-kick">Supprimer</button>
           </div>
           <button id="btn-overlay-add" class="btn-toggle-create">+ Ajouter un template</button>
+        </div>
+
+      </div>
+
+      <!-- ============================================================
+           ONGLET TIMELAPSE
+           ============================================================ -->
+      <div id="tab-timelapse" class="tab-content hidden">
+
+        <div id="timelapse-canvas-wrapper">
+          <canvas id="timelapse-canvas"></canvas>
+        </div>
+
+        <div id="timelapse-player">
+          <!-- Barre de progression -->
+          <div id="tl-progress-row">
+            <div id="tl-progress-bar">
+              <div id="tl-progress-fill"></div>
+              <div id="tl-progress-thumb"></div>
+            </div>
+            <span id="tl-time-display">0:00 / 0:00</span>
+          </div>
+
+          <!-- Boutons -->
+          <div id="tl-controls-row">
+            <div class="tl-left-controls">
+              <button id="btn-tl-restart" class="tl-btn" title="Retour au debut">⏮</button>
+              <button id="btn-tl-play" class="tl-btn tl-btn-play" title="Lecture / Pause">▶</button>
+              <span id="tl-pixel-count" class="tl-meta">0 / 0 pixels</span>
+            </div>
+            <div class="tl-speed-buttons">
+              <button class="tl-speed-btn" data-speed="50">×50</button>
+              <button class="tl-speed-btn active" data-speed="200">×200</button>
+              <button class="tl-speed-btn" data-speed="500">×500</button>
+              <button class="tl-speed-btn" data-speed="1000">×1000</button>
+              <button class="tl-speed-btn" data-speed="5000">×5000</button>
+            </div>
+          </div>
         </div>
 
       </div>
