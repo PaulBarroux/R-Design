@@ -27,6 +27,8 @@ const revealId = document.getElementById("reveal-id");
 const btnContinue = document.getElementById("btn-continue");
 const btnCopyId = document.getElementById("btn-copy-id");
 const btnSmsId = document.getElementById("btn-sms-id");
+const modalOnboarding = document.getElementById("modal-onboarding");
+const btnOnboardingClose = document.getElementById("btn-onboarding-close");
 
 // Game screen
 const displayPseudo      = document.getElementById("display-pseudo");
@@ -294,6 +296,12 @@ btnContinue.addEventListener("click", () => {
   screenIdReveal.classList.add("hidden");
   screenGame.classList.remove("hidden");
   initFillZoom();
+  // Afficher la modale d'onboarding à la première connexion
+  modalOnboarding.classList.remove("hidden");
+});
+
+btnOnboardingClose.addEventListener("click", () => {
+  modalOnboarding.classList.add("hidden");
 });
 
 // Copie universelle (fonctionne sans HTTPS)
@@ -2120,7 +2128,7 @@ btnCropConfirm.addEventListener("click", () => {
     imageData: compressed,
     x: existing ? existing.x : 0,
     y: existing ? existing.y : 0,
-    scale: existing ? existing.scale : 1,
+    scale: existing ? existing.scale : 0.25,
     opacity: existing ? existing.opacity : 0.5,
   };
   overlayConfirmed = existing;

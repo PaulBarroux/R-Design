@@ -60,6 +60,11 @@ const tlPixelCount      = document.getElementById("tl-pixel-count");
 const btnTlPlay         = document.getElementById("btn-tl-play");
 const btnTlRestart      = document.getElementById("btn-tl-restart");
 const tlSpeedBtns       = document.querySelectorAll(".tl-speed-btn");
+const btnTlExport       = document.getElementById("btn-tl-export");
+const tlExportOptions   = document.getElementById("tl-export-options");
+const tlFormatBtns      = document.querySelectorAll(".tl-format-btn");
+const btnTlRecord       = document.getElementById("btn-tl-record");
+const tlExportStatus    = document.getElementById("tl-export-status");
 
 const adminOverlaysContainer = document.getElementById("admin-overlays-container");
 const templatesPanel         = document.getElementById("templates-panel");
@@ -69,6 +74,9 @@ const templatesChevron       = document.getElementById("templates-chevron");
 const templatesListEl        = document.getElementById("templates-list");
 
 // ── ETAT LOCAL ───────────────────────────────────────────────────────────────
+
+let tlExportFormat = "webm"; // format d'export choisi
+let tlRecording = false;     // enregistrement en cours
 
 let ws = null;
 let adminToken = null;
@@ -1053,3 +1061,134 @@ function handleHistoryData(data) {
   initTlCanvas(sz.width, sz.height);
   tlUpdateUI();
 }
+
+// =============================================================================
+// TIMELAPSE — EXPORT VIDÉO
+// =============================================================================
+
+// Toggle panneau options export
+btnTlExport.addEventListener("click", () => {
+  tlExportOptions.classList.toggle("hidden");
+  tlExportStatus.classList.add("hidden");
+});
+
+// Sélection du format
+tlFormatBtns.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    tlExportFormat = btn.dataset.format;
+    tlFormatBtns.forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+  });
+});
+
+// Vérifie le support MIME
+function tlGetMimeType(format) {
+  const candidates = format === "mp4"
+    ? ["video/mp4", "video/mp4;codecs=avc1"]
+    : ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"];
+  for (const mime of candidates) {
+    if (MediaRecorder.isTypeSupported(mime)) return mime;
+  }
+  return null;
+}
+
+// Lance l'enregistrement
+btnTlRecord.addEventListener("click", () => {
+  if (tlRecording || tlHistory.length === 0) return;
+
+  const mimeType = tlGetMimeType(tlExportFormat);
+  if (!mimeType) {
+    // Format non supporté → essayer l'autre
+    const fallback = tlExportFormat === "mp4" ? "webm" : null;
+    if (fallback) {
+      const fallbackMime = tlGetMimeType(fallback);
+      if (fallbackMime) {
+        tlExportStatus.textContent = "MP4 non supporté par ce navigateur — export en WebM";
+        tlExportStatus.classList.remove("hidden");
+        tlExportFormat = fallback;
+        tlFormatBtns.forEach(b => b.classList.toggle("active", b.dataset.format === fallback));
+        return;
+      }
+    }
+    tlExportStatus.textContent = "Export vidéo non supporté par ce navigateur.";
+    tlExportStatus.classList.remove("hidden");
+    return;
+  }
+
+  // Réinitialiser le canvas au début
+  tlPause();
+  tlRebuildTo(0);
+  tlCurrentMs = 0;
+  tlUpdateUI();
+
+  // Capturer le stream canvas
+  const fps = 30;
+  const stream = tlCanvasEl.captureStream(fps);
+  const recorder = new MediaRecorder(stream, { mimeType });
+  const chunks = [];
+
+  recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+
+  recorder.onstop = () => {
+    tlRecording = false;
+    btnTlRecord.disabled = false;
+    btnTlRecord.textContent = "● Enregistrer";
+    btnTlExport.classList.remove("recording");
+
+    const ext = mimeType.startsWith("video/mp4") ? "mp4" : "webm";
+    const blob = new Blob(chunks, { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `timelapse_x${tlSpeed}.${ext}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+
+    tlExportStatus.textContent = `Export terminé (${ext.toUpperCase()}, ×${tlSpeed})`;
+    tlExportStatus.classList.remove("hidden");
+  };
+
+  // Démarrer l'enregistrement
+  tlRecording = true;
+  btnTlRecord.disabled = true;
+  btnTlRecord.textContent = "⏺ En cours...";
+  btnTlExport.classList.add("recording");
+  tlExportStatus.textContent = "Enregistrement en cours...";
+  tlExportStatus.classList.remove("hidden");
+
+  recorder.start();
+
+  // Jouer le timelapse — à la fin on arrête le recorder
+  const originalTick = tlTick;
+  function recordingTick(now) {
+    if (!tlPlaying) {
+      recorder.stop();
+      return;
+    }
+    if (tlLastRAFTime === null) tlLastRAFTime = now;
+    const dtReal = now - tlLastRAFTime;
+    tlLastRAFTime = now;
+    const dtGame = dtReal * tlSpeed;
+    tlCurrentMs = Math.min(tlCurrentMs + dtGame, tlGameEnd - tlGameStart);
+
+    const targetTs = tlGameStart + tlCurrentMs;
+    while (tlIndex < tlHistory.length && tlHistory[tlIndex].timestamp <= targetTs) {
+      tlDrawPixel(tlHistory[tlIndex]);
+      tlIndex++;
+    }
+    tlUpdateUI();
+
+    if (tlIndex >= tlHistory.length || tlCurrentMs >= tlGameEnd - tlGameStart) {
+      tlPlaying = false;
+      btnTlPlay.textContent = "▶";
+      recorder.stop();
+      return;
+    }
+    tlRAF = requestAnimationFrame(recordingTick);
+  }
+
+  tlPlaying = true;
+  tlLastRAFTime = null;
+  btnTlPlay.textContent = "⏸";
+  tlRAF = requestAnimationFrame(recordingTick);
+});

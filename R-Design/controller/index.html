@@ -330,6 +330,56 @@
     <!-- Toast notifications -->
     <div id="toast-container" class="toast-container"></div>
 
+    <!-- Modal Onboarding (affichée uniquement à la création du compte) -->
+    <div id="modal-onboarding" class="modal hidden">
+      <div class="modal-onboarding-content">
+        <h2 class="onboarding-title">Bienvenue sur r/design ! 🎨</h2>
+        <p class="onboarding-intro">Voici comment fonctionne le jeu :</p>
+
+        <div class="onboarding-section">
+          <div class="onboarding-icon">🖼️</div>
+          <div>
+            <strong>Le Canva</strong>
+            <p>Un canvas partagé de 200×200 pixels affiché sur grand écran. Tout le monde place ses pixels en temps réel.</p>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-icon">⏱️</div>
+          <div>
+            <strong>Cooldown</strong>
+            <p>Un délai s'applique entre chaque pixel placé. Choisit ta couleur et vise bien !</p>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-icon">✦</div>
+          <div>
+            <strong>Pixels dorés</strong>
+            <p>Tu gagnes 1 ✦ à chaque pixel placé. Ils servent à utiliser des pouvoirs individuels :</p>
+            <ul class="onboarding-list">
+              <li>💣 <strong>Bombe</strong> (20 ✦) — remplit un carré 5×5</li>
+              <li>⚡ <strong>Rafale</strong> (40 ✦) — cooldown réduit à 1s pendant 30s</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="onboarding-section">
+          <div class="onboarding-icon">◆</div>
+          <div>
+            <strong>Pixels diamant</strong>
+            <p>Gagnés en équipe à chaque pixel placé. Le créateur d'équipe peut activer :</p>
+            <ul class="onboarding-list">
+              <li>🚀 <strong>Accélération équipe</strong> (100 ◆) — cooldown 5s pour tous, 2 min</li>
+              <li>🎨 <strong>Remplacement couleur</strong> (150 ◆) — remplace une couleur sur 10×10</li>
+            </ul>
+          </div>
+        </div>
+
+        <button id="btn-onboarding-close" class="btn-black">C'est parti !</button>
+      </div>
+    </div>
+
     <!-- Modal Invite -->
     <div id="modal-invite" class="modal-invite hidden">
       <div class="modal-invite-content">
