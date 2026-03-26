@@ -84,10 +84,7 @@ const sheetHandleEl = document.querySelector(".sheet-handle");
 const paletteEl = document.getElementById("palette");
 const btnConfirmPixel = document.getElementById("btn-confirm-pixel");
 
-// Cooldown
-const cooldownBar = document.getElementById("cooldown-bar");
-const cooldownFill = document.getElementById("cooldown-fill");
-const cooldownText = document.getElementById("cooldown-text");
+// Cooldown (removed from header, now in bottom sheet)
 
 // Powers
 const displayGold        = document.getElementById("display-gold");
@@ -102,8 +99,10 @@ const btnPowersClose     = document.getElementById("btn-powers-close");
 // Timer bars
 const sheetTimerBar   = document.getElementById("sheet-timer-bar");
 const sheetTimerFill  = document.getElementById("sheet-timer-fill");
+const sheetTimerText  = document.getElementById("sheet-timer-text");
 const sheetBuffBar    = document.getElementById("sheet-buff-bar");
 const sheetBuffFill   = document.getElementById("sheet-buff-fill");
+const sheetBuffText   = document.getElementById("sheet-buff-text");
 
 // Toast
 const toastContainer = document.getElementById("toast-container");
@@ -242,12 +241,8 @@ function showJoinError(msg) {
   setTimeout(() => joinError.classList.add("hidden"), 5000);
 }
 
-let gameErrorTimeout = null;
 function showGameError(msg) {
-  gameError.textContent = msg;
-  gameError.classList.remove("hidden");
-  if (gameErrorTimeout) clearTimeout(gameErrorTimeout);
-  gameErrorTimeout = setTimeout(() => gameError.classList.add("hidden"), 4000);
+  showToast(msg);
 }
 
 // =============================================================================
@@ -777,7 +772,6 @@ let cooldownInterval = null;
 function startCooldown(endTime, duration) {
   cooldownEnd = endTime;
   cooldownDuration = duration;
-  cooldownBar.classList.remove("ready");
   sheetTimerBar.classList.remove("ready");
 
   // Reset la selection apres un placement reussi (sauf si pouvoir actif)
@@ -792,18 +786,14 @@ function startCooldown(endTime, duration) {
     const remaining = cooldownEnd - Date.now();
     if (remaining <= 0) {
       clearInterval(cooldownInterval);
-      cooldownFill.style.width = "100%";
-      cooldownBar.classList.add("ready");
-      cooldownText.textContent = "Prêt !";
       sheetTimerFill.style.width = "100%";
       sheetTimerBar.classList.add("ready");
+      sheetTimerText.textContent = "Pret !";
       return;
     }
-    const pct = `${(1 - remaining / cooldownDuration) * 100}%`;
-    cooldownFill.style.width = pct;
-    sheetTimerFill.style.width = pct;
+    sheetTimerFill.style.width = `${(1 - remaining / cooldownDuration) * 100}%`;
     const secs = Math.ceil(remaining / 1000);
-    cooldownText.textContent = `${secs}s`;
+    sheetTimerText.textContent = `${secs}s`;
   }, 200);
 }
 
@@ -838,7 +828,6 @@ function updatePowersButton() {
   const canTeamAccel = isCreator && diamondPixels >= 100 && teamAccelEndsAt <= Date.now();
   const canColorReplace = isCreator && diamondPixels >= 150;
   const any = canBomb || canRafale || canTeamAccel || canColorReplace;
-  btnPowers.disabled = !any;
   btnPowers.classList.toggle("available", any);
 }
 
@@ -982,7 +971,7 @@ function removePowerOverlay() {
 // --- Buff timers ---
 let buffInterval = null;
 
-function startBuffTimer(endsAt) {
+function startBuffTimer(endsAt, label) {
   sheetBuffBar.classList.remove("hidden");
   if (buffInterval) clearInterval(buffInterval);
   const duration = endsAt - Date.now();
@@ -993,9 +982,12 @@ function startBuffTimer(endsAt) {
       buffInterval = null;
       sheetBuffBar.classList.add("hidden");
       sheetBuffFill.style.width = "0%";
+      sheetBuffText.textContent = "";
       return;
     }
     sheetBuffFill.style.width = `${(remaining / duration) * 100}%`;
+    const secs = Math.ceil(remaining / 1000);
+    sheetBuffText.textContent = `${label || "Buff"} ${secs}s`;
   }, 200);
 }
 
@@ -1066,7 +1058,7 @@ function renderTeamsList(teamsData) {
       <div class="team-dot" style="background: ${team.color}"></div>
       <div class="team-item-info">
         <div class="team-item-name">${team.name}${isMine ? ' <span class="member-role">Mon equipe</span>' : ""}</div>
-        <div class="team-item-stats">${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px</div>
+        <div class="team-item-stats">${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px · ${team.diamondPixels || 0} ◆</div>
       </div>
       <span style="font-size:0.8rem; opacity:0.4;">›</span>
     `;
@@ -1086,7 +1078,7 @@ function showTeamDetail(teamId) {
 
   detailTeamDot.style.background = team.color;
   detailTeamName.textContent = team.name;
-  detailTeamStats.textContent = `${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px`;
+  detailTeamStats.textContent = `${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px · ${team.diamondPixels || 0} ◆`;
 
   // Membres
   detailMembersList.innerHTML = "";
@@ -1100,10 +1092,12 @@ function showTeamDetail(teamId) {
         kickBtn = `<button class="btn-kick" data-id="${member.id}">Exclure</button>`;
       }
       let roleTag = member.isCreator ? `<span class="member-role">Chef</span>` : "";
+      const goldTag = `<span class="member-gold">${member.goldPixels || 0} ✦</span>`;
       el.innerHTML = `
         <div class="member-status ${member.active ? "active" : "inactive"}"></div>
         <span class="member-name">${member.pseudo}${member.id === playerId ? " (moi)" : ""}</span>
         ${roleTag}
+        ${goldTag}
         ${kickBtn}
       `;
       const kickBtnEl = el.querySelector(".btn-kick");
@@ -1243,8 +1237,9 @@ ws.addEventListener("message", (event) => {
     displayPseudo.textContent = data.pseudo;
     profilePseudo.textContent = data.pseudo;
     displayId.textContent = data.playerId;
-    displayPoints.textContent = "0 pts";
-    displayPointsProfile.textContent = "0 pts";
+    const initPts = data.totalPixels || 0;
+    displayPoints.textContent = initPts + " pt" + (initPts !== 1 ? "s" : "");
+    displayPointsProfile.textContent = displayPoints.textContent;
 
     if (data.teamId) myTeamId = data.teamId;
     updateTeamUI();
@@ -1259,11 +1254,9 @@ ws.addEventListener("message", (event) => {
     updatePowersButton();
 
     // Cooldown pret
-    cooldownBar.classList.add("ready");
-    cooldownText.textContent = "Prêt !";
-    cooldownFill.style.width = "100%";
-    sheetTimerFill.style.width = "100%";
     sheetTimerBar.classList.add("ready");
+    sheetTimerText.textContent = "Pret !";
+    sheetTimerFill.style.width = "100%";
 
     // Si c'est un nouveau joueur (pas une reconnexion), montrer l'ecran ID
     if (!screenGame.classList.contains("hidden") || screenIdReveal.classList.contains("hidden") === false) {
@@ -1302,6 +1295,11 @@ ws.addEventListener("message", (event) => {
   if (type === "pixelPlaced") {
     updatePixel(data.x, data.y, data.color);
     startCooldown(data.nextPlacement, data.cooldown);
+    if (data.totalPixels !== undefined) {
+      const pts = data.totalPixels;
+      displayPoints.textContent = pts + " pt" + (pts !== 1 ? "s" : "");
+      displayPointsProfile.textContent = displayPoints.textContent;
+    }
     if (data.goldPixels !== undefined) {
       goldPixels = data.goldPixels;
       updateGoldDisplay();
@@ -1334,7 +1332,7 @@ ws.addEventListener("message", (event) => {
     goldPixels = data.goldPixels;
     updateGoldDisplay();
     updatePowersButton();
-    startBuffTimer(data.endsAt);
+    startBuffTimer(data.endsAt, "Rafale");
     showToast("Rafale activee — 30 secondes !");
   }
 
@@ -1344,7 +1342,7 @@ ws.addEventListener("message", (event) => {
       teamAccelEndsAt = data.endsAt;
       if (data.diamondPixels !== undefined) { diamondPixels = data.diamondPixels; updateDiamondDisplay(); }
       updatePowersButton();
-      startBuffTimer(data.endsAt);
+      startBuffTimer(data.endsAt, "Accel");
       showToast("Acceleration d'equipe — 2 minutes !");
     }
   }
@@ -1363,9 +1361,13 @@ ws.addEventListener("message", (event) => {
     }
   }
 
-  // --- Cooldown update (apres fin de buff) ---
+  // --- Cooldown update (apres fin de buff ou mode test) ---
   if (type === "cooldownUpdate") {
     cooldownDuration = data.cooldown;
+    // Reset le timer pour montrer le nouveau cooldown
+    sheetTimerBar.classList.add("ready");
+    sheetTimerText.textContent = "Pret !";
+    sheetTimerFill.style.width = "100%";
   }
 
   // --- Cooldown error ---
@@ -1373,15 +1375,9 @@ ws.addEventListener("message", (event) => {
     showGameError(data.message);
   }
 
-  // --- Leaderboard ---
+  // --- Leaderboard (points are now tracked locally via totalPixels) ---
   if (type === "leaderboard") {
-    const pseudo = displayPseudo.textContent;
-    if (!pseudo || pseudo === "—") return;
-    const me = data.individual.find(e => e.pseudo === pseudo);
-    const pts = me ? me.count : 0;
-    const label = pts + " pt" + (pts !== 1 ? "s" : "");
-    displayPoints.textContent = label;
-    displayPointsProfile.textContent = label;
+    // Leaderboard data is still used by game/ display, nothing to do here
   }
 
   // --- Pixel info (qui a pose ce pixel) ---

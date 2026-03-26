@@ -149,6 +149,20 @@
 
 .btn-unblock:active { background: #e9456044; }
 
+.btn-test {
+  background: none;
+  border: 1px solid #3690EA66;
+  color: #3690EA;
+  border-radius: 20px;
+  padding: 0.2rem 0.6rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-test:active { background: #3690EA22; }
+
 /* Ligne joueur bloque */
 .member-item.blocked {
   background: #fff5f5;

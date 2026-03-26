@@ -529,11 +529,17 @@ function renderPlayersList() {
       row.appendChild(name);
     }
 
+    const btnTest = document.createElement("button");
+    btnTest.className = p.testPlayer ? "btn-unblock" : "btn-test";
+    btnTest.textContent = p.testPlayer ? "Normal" : "Test";
+    btnTest.addEventListener("click", () => send("adminToggleTest", { playerId: p.id }));
+
     const btn = document.createElement("button");
     btn.className = p.blocked ? "btn-unblock" : "btn-block";
     btn.textContent = p.blocked ? "Debloquer" : "Bloquer";
     btn.addEventListener("click", () => send("adminToggleBlock", { playerId: p.id }));
 
+    row.appendChild(btnTest);
     row.appendChild(btn);
     playersListEl.appendChild(row);
   });

@@ -169,14 +169,16 @@ function getBaseCooldown() {
   return DEFAULT_COOLDOWN;
 }
 
-// Cooldown effectif pour un joueur (tient compte des buffs)
+// Cooldown effectif pour un joueur (tient compte des buffs et mode test)
 function getPlayerCooldown(playerId) {
+  const player = players[playerId];
+  // Joueur test : 0.1s
+  if (player && player.testPlayer) return ADMIN_COOLDOWN;
   // Rafale individuelle prioritaire (1s)
   if (rafaleBuffs[playerId] && rafaleBuffs[playerId].endsAt > Date.now()) {
     return POWER_RAFALE_COOLDOWN;
   }
   // Acceleration d'equipe (5s)
-  const player = players[playerId];
   if (player && player.teamId && teamAccelBuffs[player.teamId] && teamAccelBuffs[player.teamId].endsAt > Date.now()) {
     return POWER_TEAM_ACCEL_COOLDOWN;
   }
@@ -218,31 +220,22 @@ setInterval(checkInactivePlayers, 30000);
 // =============================================================================
 
 function getLeaderboard() {
-  const currentPixelOwner = {};
-  for (const entry of pixelHistory) {
-    currentPixelOwner[`${entry.x},${entry.y}`] = entry.playerId;
-  }
-
-  const playerPixelCount = {};
-  for (const owner of Object.values(currentPixelOwner)) {
-    playerPixelCount[owner] = (playerPixelCount[owner] || 0) + 1;
-  }
-
-  const individualBoard = Object.entries(playerPixelCount)
-    .map(([playerId, count]) => ({
-      playerId,
-      pseudo: players[playerId] ? players[playerId].pseudo : "???",
-      teamId: players[playerId] ? players[playerId].teamId : null,
-      count,
+  // Points = totalPixels (compteur incremental, ne baisse jamais)
+  const individualBoard = Object.values(players)
+    .filter((p) => p.totalPixels > 0)
+    .map((p) => ({
+      playerId: p.id,
+      pseudo: p.pseudo,
+      teamId: p.teamId,
+      count: p.totalPixels,
     }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 15);
 
   const teamPixelCount = {};
-  for (const [playerId, count] of Object.entries(playerPixelCount)) {
-    const player = players[playerId];
-    if (player && player.teamId && teams[player.teamId]) {
-      teamPixelCount[player.teamId] = (teamPixelCount[player.teamId] || 0) + count;
+  for (const p of Object.values(players)) {
+    if (p.teamId && teams[p.teamId] && p.totalPixels > 0) {
+      teamPixelCount[p.teamId] = (teamPixelCount[p.teamId] || 0) + p.totalPixels;
     }
   }
 
@@ -327,6 +320,7 @@ function getTeamsPublicData() {
         pseudo: players[pid] ? players[pid].pseudo : "???",
         active: players[pid] ? players[pid].active : false,
         isCreator: pid === team.creatorId,
+        goldPixels: players[pid] ? players[pid].goldPixels || 0 : 0,
       })),
     };
   }
@@ -344,6 +338,7 @@ function getPlayersPublicData() {
     teamId: p.teamId,
     active: p.active,
     blocked: p.blocked || false,
+    testPlayer: p.testPlayer || false,
   }));
 }
 
@@ -421,6 +416,24 @@ wss.on("connection", (ws) => {
           }
         });
       }
+      broadcastToAdmins("playersUpdate", getPlayersPublicData());
+      return;
+    }
+
+    // === ADMIN TOGGLE TEST PLAYER ===
+    if (type === "adminToggleTest") {
+      if (!ws._isAdmin) return;
+      const targetId = data.playerId;
+      if (!targetId || !players[targetId]) return;
+      players[targetId].testPlayer = !players[targetId].testPlayer;
+      const state = players[targetId].testPlayer ? "test" : "normal";
+      log.info(`[ADMIN] ${players[targetId].pseudo} → ${state}`);
+      // Notifier le joueur de son nouveau cooldown
+      wss.clients.forEach((client) => {
+        if (client._playerId === targetId) {
+          send(client, "cooldownUpdate", { cooldown: getPlayerCooldown(targetId) });
+        }
+      });
       broadcastToAdmins("playersUpdate", getPlayersPublicData());
       return;
     }
@@ -676,7 +689,7 @@ wss.on("connection", (ws) => {
         id: playerId, pseudo, teamId: null,
         lastPlacement: 0, totalPixels: 0,
         connectedAt: Date.now(), lastActivity: Date.now(), active: true,
-        blocked: false, goldPixels: 0,
+        blocked: false, goldPixels: 0, testPlayer: false,
       };
       ws._playerId = playerId;
       log.connect(`${pseudo} a rejoint (ID: ${playerId})`);
@@ -686,7 +699,7 @@ wss.on("connection", (ws) => {
         cooldown: getCurrentCooldown(),
         palette: COLOR_PALETTE,
         canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
-        goldPixels: 0, diamondPixels: 0,
+        goldPixels: 0, diamondPixels: 0, totalPixels: 0,
       });
       broadcastPlayerList();
       broadcastToAdmins("playersUpdate", getPlayersPublicData());
@@ -705,10 +718,11 @@ wss.on("connection", (ws) => {
         send(ws, "joined", {
           playerId, pseudo: rp.pseudo,
           teamId: rp.teamId,
-          cooldown: getCurrentCooldown(),
+          cooldown: getPlayerCooldown(playerId),
           palette: COLOR_PALETTE,
           canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
           goldPixels: rp.goldPixels || 0,
+          totalPixels: rp.totalPixels || 0,
           diamondPixels: rp.teamId && teams[rp.teamId] ? teams[rp.teamId].diamondPixels : 0,
         });
         broadcastPlayerList();
@@ -756,12 +770,12 @@ wss.on("connection", (ws) => {
 
       canvas[y][x] = color;
       player.lastPlacement = Date.now();
-      player.totalPixels++;
       updatePlayerActivity(playerId);
+      pixelHistory.push({ playerId, x, y, color, timestamp: Date.now() });
 
       if (!hasRafale) {
         // Points et ressources uniquement hors rafale
-        pixelHistory.push({ playerId, x, y, color, timestamp: Date.now() });
+        player.totalPixels++;
         player.goldPixels++;
         if (player.teamId && teams[player.teamId]) {
           teams[player.teamId].diamondPixels++;
@@ -773,6 +787,7 @@ wss.on("connection", (ws) => {
         x, y, color, cooldown,
         nextPlacement: Date.now() + cooldown,
         goldPixels: player.goldPixels,
+        totalPixels: player.totalPixels,
         diamondPixels: player.teamId && teams[player.teamId] ? teams[player.teamId].diamondPixels : 0,
       });
       broadcastPixelUpdate(x, y, color, playerId);
