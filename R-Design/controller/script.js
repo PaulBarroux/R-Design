@@ -89,6 +89,25 @@ const cooldownBar = document.getElementById("cooldown-bar");
 const cooldownFill = document.getElementById("cooldown-fill");
 const cooldownText = document.getElementById("cooldown-text");
 
+// Powers
+const displayGold        = document.getElementById("display-gold");
+const btnPowers          = document.getElementById("btn-powers");
+const powersMenu         = document.getElementById("powers-menu");
+const powersGoldCount    = document.getElementById("powers-gold-count");
+const powersDiamondCount = document.getElementById("powers-diamond-count");
+const powersDiamondWrap  = document.getElementById("powers-diamond-wrap");
+const powersTeamSection  = document.getElementById("powers-team-section");
+const btnPowersClose     = document.getElementById("btn-powers-close");
+
+// Timer bars
+const sheetTimerBar   = document.getElementById("sheet-timer-bar");
+const sheetTimerFill  = document.getElementById("sheet-timer-fill");
+const sheetBuffBar    = document.getElementById("sheet-buff-bar");
+const sheetBuffFill   = document.getElementById("sheet-buff-fill");
+
+// Toast
+const toastContainer = document.getElementById("toast-container");
+
 // Tabs
 const tabs = document.querySelectorAll(".tab");
 const tabCanvas = document.getElementById("tab-canvas");
@@ -140,6 +159,18 @@ let overlayDraft = null;           // { imageData, x, y, scale, opacity } pendan
 let overlayConfirmed = null;       // dernier etat confirme (pour annulation)
 let isCreator = false;
 let localOverlayOpacity = null;    // opacite locale du membre (null = utiliser celle du serveur)
+
+// Powers state
+let goldPixels = 0;
+let diamondPixels = 0;
+let activePower = null;  // null | "bomb" | "colorReplace"
+let bombPreview = null;  // { x, y } position du carre 5x5
+let colorReplacePreview = null; // { x, y }
+let colorReplaceTarget = null;  // couleur cible selectionnee
+let colorReplaceStep = "target"; // "target" | "new" | "position"
+let rafaleEndsAt = 0;
+let teamAccelEndsAt = 0;
+let powersMenuOpen = false;
 
 // Zoom/pan state
 let zoomLevel = 1;
@@ -310,6 +341,7 @@ function buildPalette(colors) {
       btn.classList.add("selected");
       selectedColor = color;
       updateConfirmButton();
+      if (activePower === "bomb") updatePowerOverlay();
     });
     paletteEl.appendChild(btn);
   });
@@ -436,6 +468,7 @@ function updateViewport() {
 
   updatePixelCursor();
   refreshOverlayTransform();
+  if (activePower) updatePowerOverlay();
 }
 
 function getZoomFocus() {
@@ -581,14 +614,36 @@ function handlePixelClick(e) {
   const pixelX = Math.floor((clickX - CANVAS_PAD_H) / zoomLevel);
   const pixelY = Math.floor((clickY - CANVAS_PAD_H) / zoomLevel);
 
-  if (pixelX >= 0 && pixelX < canvasSize.width && pixelY >= 0 && pixelY < canvasSize.height) {
+  if (pixelX < 0 || pixelX >= canvasSize.width || pixelY < 0 || pixelY >= canvasSize.height) return;
+
+  // Bombe : positionner le carre 5x5
+  if (activePower === "bomb") {
+    // Centrer le 5x5 sur le clic
+    bombPreview = { x: pixelX - 2, y: pixelY - 2 };
     selectedPixel = { x: pixelX, y: pixelY };
     coordsText.textContent = `(${pixelX}, ${pixelY})`;
-    pixelPlacerText.classList.add("hidden");
-    send("getPixelInfo", { x: pixelX, y: pixelY });
-    updatePixelCursor();
+    updatePowerOverlay();
     updateConfirmButton();
+    return;
   }
+
+  // Remplacement couleur : positionner le 10x10
+  if (activePower === "colorReplace" && colorReplaceStep === "position") {
+    colorReplacePreview = { x: pixelX - 5, y: pixelY - 5 };
+    selectedPixel = { x: pixelX, y: pixelY };
+    coordsText.textContent = `(${pixelX}, ${pixelY})`;
+    updatePowerOverlay();
+    updateConfirmButton();
+    return;
+  }
+
+  // Normal
+  selectedPixel = { x: pixelX, y: pixelY };
+  coordsText.textContent = `(${pixelX}, ${pixelY})`;
+  pixelPlacerText.classList.add("hidden");
+  send("getPixelInfo", { x: pixelX, y: pixelY });
+  updatePixelCursor();
+  updateConfirmButton();
 }
 
 function updatePixelCursor() {
@@ -614,6 +669,47 @@ function updatePixelCursor() {
 const CONFIRM_ICON = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2" transform="rotate(45 12 12)"/></svg>';
 
 function updateConfirmButton() {
+  // Bombe
+  if (activePower === "bomb") {
+    if (bombPreview && selectedColor) {
+      btnConfirmPixel.disabled = false;
+      btnConfirmPixel.textContent = "Bombarder";
+      btnConfirmPixel.style.background = "#e94560";
+      btnConfirmPixel.style.color = "#fff";
+    } else if (selectedColor) {
+      btnConfirmPixel.disabled = true;
+      btnConfirmPixel.textContent = "Choisir position";
+    } else {
+      btnConfirmPixel.disabled = true;
+      btnConfirmPixel.textContent = "Choisir couleur";
+    }
+    return;
+  }
+
+  // Remplacement couleur
+  if (activePower === "colorReplace") {
+    if (colorReplaceStep === "target") {
+      btnConfirmPixel.disabled = !selectedColor;
+      btnConfirmPixel.textContent = selectedColor ? "Valider couleur cible" : "Choisir couleur cible";
+      btnConfirmPixel.style.background = selectedColor ? "#6366f1" : "";
+      btnConfirmPixel.style.color = selectedColor ? "#fff" : "";
+    } else if (colorReplaceStep === "new") {
+      btnConfirmPixel.disabled = !selectedColor;
+      btnConfirmPixel.textContent = selectedColor ? "Valider nouvelle couleur" : "Choisir nouvelle couleur";
+      btnConfirmPixel.style.background = selectedColor ? "#6366f1" : "";
+      btnConfirmPixel.style.color = selectedColor ? "#fff" : "";
+    } else if (colorReplaceStep === "position") {
+      btnConfirmPixel.disabled = !colorReplacePreview;
+      btnConfirmPixel.textContent = colorReplacePreview ? "Remplacer" : "Choisir position";
+      btnConfirmPixel.style.background = colorReplacePreview ? "#6366f1" : "";
+      btnConfirmPixel.style.color = colorReplacePreview ? "#fff" : "";
+    }
+    return;
+  }
+
+  // Normal
+  btnConfirmPixel.style.background = "";
+  btnConfirmPixel.style.color = "";
   if (selectedPixel && selectedColor) {
     btnConfirmPixel.disabled = false;
     btnConfirmPixel.innerHTML = CONFIRM_ICON + "Poser ici";
@@ -622,18 +718,53 @@ function updateConfirmButton() {
   } else if (selectedPixel) {
     btnConfirmPixel.disabled = true;
     btnConfirmPixel.innerHTML = CONFIRM_ICON + "Choisis une couleur";
-    btnConfirmPixel.style.background = "";
-    btnConfirmPixel.style.color = "";
   } else {
     btnConfirmPixel.disabled = true;
     btnConfirmPixel.innerHTML = CONFIRM_ICON + "Poser";
-    btnConfirmPixel.style.background = "";
-    btnConfirmPixel.style.color = "";
   }
 }
 
 btnConfirmPixel.addEventListener("click", () => {
-  if (!selectedPixel || !selectedColor || !playerId) return;
+  if (!playerId) return;
+
+  // Bombe : confirmer
+  if (activePower === "bomb") {
+    if (!bombPreview || !selectedColor) return;
+    send("useBomb", { x: bombPreview.x, y: bombPreview.y, color: selectedColor });
+    cancelActivePower();
+    return;
+  }
+
+  // Remplacement couleur : flow multi-etapes
+  if (activePower === "colorReplace") {
+    if (colorReplaceStep === "target" && selectedColor) {
+      colorReplaceTarget = selectedColor;
+      colorReplaceStep = "new";
+      selectedColor = null;
+      paletteEl.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("selected"));
+      showToast("Choisissez la nouvelle couleur");
+      updateConfirmButton();
+      return;
+    }
+    if (colorReplaceStep === "new" && selectedColor) {
+      colorReplaceStep = "position";
+      showToast("Choisissez la position de la zone 10x10");
+      updateConfirmButton();
+      return;
+    }
+    if (colorReplaceStep === "position" && colorReplacePreview) {
+      send("useColorReplace", {
+        x: colorReplacePreview.x, y: colorReplacePreview.y,
+        targetColor: colorReplaceTarget, newColor: selectedColor,
+      });
+      cancelActivePower();
+      return;
+    }
+    return;
+  }
+
+  // Normal
+  if (!selectedPixel || !selectedColor) return;
   send("placePixel", { x: selectedPixel.x, y: selectedPixel.y, color: selectedColor });
 });
 
@@ -647,11 +778,14 @@ function startCooldown(endTime, duration) {
   cooldownEnd = endTime;
   cooldownDuration = duration;
   cooldownBar.classList.remove("ready");
+  sheetTimerBar.classList.remove("ready");
 
-  // Reset la selection apres un placement reussi
-  selectedPixel = null;
-  pixelCursor.classList.add("hidden");
-  updateConfirmButton();
+  // Reset la selection apres un placement reussi (sauf si pouvoir actif)
+  if (!activePower) {
+    selectedPixel = null;
+    pixelCursor.classList.add("hidden");
+    updateConfirmButton();
+  }
 
   if (cooldownInterval) clearInterval(cooldownInterval);
   cooldownInterval = setInterval(() => {
@@ -661,11 +795,207 @@ function startCooldown(endTime, duration) {
       cooldownFill.style.width = "100%";
       cooldownBar.classList.add("ready");
       cooldownText.textContent = "Prêt !";
+      sheetTimerFill.style.width = "100%";
+      sheetTimerBar.classList.add("ready");
       return;
     }
-    cooldownFill.style.width = `${(1 - remaining / cooldownDuration) * 100}%`;
+    const pct = `${(1 - remaining / cooldownDuration) * 100}%`;
+    cooldownFill.style.width = pct;
+    sheetTimerFill.style.width = pct;
     const secs = Math.ceil(remaining / 1000);
     cooldownText.textContent = `${secs}s`;
+  }, 200);
+}
+
+// =============================================================================
+// TOAST NOTIFICATIONS
+// =============================================================================
+
+function showToast(message) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = message;
+  toastContainer.appendChild(el);
+  setTimeout(() => el.remove(), 3100);
+}
+
+// =============================================================================
+// POUVOIRS — LOGIQUE
+// =============================================================================
+
+function updateGoldDisplay() {
+  displayGold.textContent = goldPixels + " \u2726";
+  powersGoldCount.textContent = goldPixels;
+}
+
+function updateDiamondDisplay() {
+  powersDiamondCount.textContent = diamondPixels;
+}
+
+function updatePowersButton() {
+  const canBomb = goldPixels >= 20;
+  const canRafale = goldPixels >= 40 && rafaleEndsAt <= Date.now();
+  const canTeamAccel = isCreator && diamondPixels >= 100 && teamAccelEndsAt <= Date.now();
+  const canColorReplace = isCreator && diamondPixels >= 150;
+  const any = canBomb || canRafale || canTeamAccel || canColorReplace;
+  btnPowers.disabled = !any;
+  btnPowers.classList.toggle("available", any);
+}
+
+function updatePowerItems() {
+  const items = powersMenu.querySelectorAll(".power-item");
+  items.forEach((btn) => {
+    const power = btn.dataset.power;
+    let canUse = false;
+    if (power === "bomb") canUse = goldPixels >= 20;
+    if (power === "rafale") canUse = goldPixels >= 40 && rafaleEndsAt <= Date.now();
+    if (power === "teamAccel") canUse = isCreator && diamondPixels >= 100 && teamAccelEndsAt <= Date.now();
+    if (power === "colorReplace") canUse = isCreator && diamondPixels >= 150;
+    btn.disabled = !canUse;
+  });
+}
+
+function openPowersMenu() {
+  powersMenuOpen = true;
+  // Afficher section equipe si chef
+  if (isCreator && myTeamId) {
+    powersTeamSection.classList.remove("hidden");
+    powersDiamondWrap.classList.remove("hidden");
+  } else {
+    powersTeamSection.classList.add("hidden");
+    powersDiamondWrap.classList.add("hidden");
+  }
+  updateGoldDisplay();
+  updateDiamondDisplay();
+  updatePowerItems();
+  // Masquer palette et CTA, afficher menu pouvoirs
+  document.getElementById("palette-label").classList.add("hidden");
+  paletteEl.classList.add("hidden");
+  document.querySelector(".confirm-row").classList.add("hidden");
+  powersMenu.classList.remove("hidden");
+}
+
+function closePowersMenu() {
+  powersMenuOpen = false;
+  powersMenu.classList.add("hidden");
+  document.getElementById("palette-label").classList.remove("hidden");
+  paletteEl.classList.remove("hidden");
+  document.querySelector(".confirm-row").classList.remove("hidden");
+}
+
+btnPowers.addEventListener("click", () => {
+  if (powersMenuOpen) closePowersMenu();
+  else openPowersMenu();
+});
+btnPowersClose.addEventListener("click", closePowersMenu);
+
+// --- Activation des pouvoirs ---
+powersMenu.querySelectorAll(".power-item").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    if (btn.disabled) return;
+    const power = btn.dataset.power;
+    if (power === "rafale") {
+      send("useRafale", {});
+      closePowersMenu();
+      return;
+    }
+    if (power === "teamAccel") {
+      send("useTeamAccel", {});
+      closePowersMenu();
+      return;
+    }
+    if (power === "bomb") {
+      activePower = "bomb";
+      bombPreview = null;
+      closePowersMenu();
+      btnConfirmPixel.textContent = "Bombarder";
+      btnConfirmPixel.disabled = true;
+      showToast("Bombe activee — choisissez couleur puis position");
+      return;
+    }
+    if (power === "colorReplace") {
+      activePower = "colorReplace";
+      colorReplaceStep = "target";
+      colorReplaceTarget = null;
+      colorReplacePreview = null;
+      closePowersMenu();
+      btnConfirmPixel.textContent = "Choisir couleur cible";
+      btnConfirmPixel.disabled = true;
+      selectedColor = null;
+      // Deselect palette
+      paletteEl.querySelectorAll(".color-swatch").forEach(s => s.classList.remove("selected"));
+      showToast("Remplacement — choisissez la couleur a remplacer");
+      return;
+    }
+  });
+});
+
+// --- Annulation pouvoir actif ---
+function cancelActivePower() {
+  activePower = null;
+  bombPreview = null;
+  colorReplacePreview = null;
+  colorReplaceTarget = null;
+  removePowerOverlay();
+  btnConfirmPixel.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2" transform="rotate(45 12 12)"/></svg>Poser';
+  updateConfirmButton();
+}
+
+// --- Power overlay sur le canvas ---
+function updatePowerOverlay() {
+  removePowerOverlay();
+  if (activePower === "bomb" && bombPreview && selectedColor) {
+    drawPowerRect(bombPreview.x, bombPreview.y, 5, selectedColor, 0.5);
+  }
+  if (activePower === "colorReplace" && colorReplacePreview) {
+    const col = colorReplaceTarget || "#fff";
+    drawPowerRect(colorReplacePreview.x, colorReplacePreview.y, 10, col, 0.3);
+  }
+}
+
+function drawPowerRect(px, py, size, color, alpha) {
+  let overlay = document.getElementById("power-overlay");
+  if (!overlay) {
+    overlay = document.createElement("div");
+    overlay.id = "power-overlay";
+    overlay.style.position = "absolute";
+    overlay.style.pointerEvents = "none";
+    overlay.style.zIndex = "3";
+    overlay.style.border = "2px solid #fff";
+    overlay.style.boxSizing = "border-box";
+    overlay.style.mixBlendMode = "multiply";
+    canvasViewport.appendChild(overlay);
+  }
+  overlay.style.left = (CANVAS_PAD_H + px * zoomLevel) + "px";
+  overlay.style.top  = (CANVAS_PAD_H + py * zoomLevel) + "px";
+  overlay.style.width  = (size * zoomLevel) + "px";
+  overlay.style.height = (size * zoomLevel) + "px";
+  overlay.style.background = color;
+  overlay.style.opacity = alpha;
+}
+
+function removePowerOverlay() {
+  const el = document.getElementById("power-overlay");
+  if (el) el.remove();
+}
+
+// --- Buff timers ---
+let buffInterval = null;
+
+function startBuffTimer(endsAt) {
+  sheetBuffBar.classList.remove("hidden");
+  if (buffInterval) clearInterval(buffInterval);
+  const duration = endsAt - Date.now();
+  buffInterval = setInterval(() => {
+    const remaining = endsAt - Date.now();
+    if (remaining <= 0) {
+      clearInterval(buffInterval);
+      buffInterval = null;
+      sheetBuffBar.classList.add("hidden");
+      sheetBuffFill.style.width = "0%";
+      return;
+    }
+    sheetBuffFill.style.width = `${(remaining / duration) * 100}%`;
   }, 200);
 }
 
@@ -861,6 +1191,8 @@ function updateTeamUI() {
     displayTeam.style.color = "#888";
   }
 
+  updatePowersButton();
+
   // Controles overlay : visibles si on est dans une equipe avec un overlay
   const teamOverlay = myTeamId && allTeams[myTeamId] ? allTeams[myTeamId].overlay : null;
   memberOverlayControls.classList.toggle("hidden", !teamOverlay);
@@ -919,10 +1251,19 @@ ws.addEventListener("message", (event) => {
 
     if (data.palette) buildPalette(data.palette);
 
+    // Resources
+    goldPixels = data.goldPixels || 0;
+    diamondPixels = data.diamondPixels || 0;
+    updateGoldDisplay();
+    updateDiamondDisplay();
+    updatePowersButton();
+
     // Cooldown pret
     cooldownBar.classList.add("ready");
     cooldownText.textContent = "Prêt !";
     cooldownFill.style.width = "100%";
+    sheetTimerFill.style.width = "100%";
+    sheetTimerBar.classList.add("ready");
 
     // Si c'est un nouveau joueur (pas une reconnexion), montrer l'ecran ID
     if (!screenGame.classList.contains("hidden") || screenIdReveal.classList.contains("hidden") === false) {
@@ -961,11 +1302,70 @@ ws.addEventListener("message", (event) => {
   if (type === "pixelPlaced") {
     updatePixel(data.x, data.y, data.color);
     startCooldown(data.nextPlacement, data.cooldown);
+    if (data.goldPixels !== undefined) {
+      goldPixels = data.goldPixels;
+      updateGoldDisplay();
+      updatePowersButton();
+    }
+    if (data.diamondPixels !== undefined) {
+      diamondPixels = data.diamondPixels;
+      updateDiamondDisplay();
+      updatePowersButton();
+    }
   }
 
   // --- Pixel update (d'un autre joueur) ---
   if (type === "pixelUpdate") {
     updatePixel(data.x, data.y, data.color);
+  }
+
+  // --- Power used (confirmation serveur) ---
+  if (type === "powerUsed") {
+    if (data.goldPixels !== undefined) { goldPixels = data.goldPixels; updateGoldDisplay(); }
+    if (data.diamondPixels !== undefined) { diamondPixels = data.diamondPixels; updateDiamondDisplay(); }
+    updatePowersButton();
+    if (data.power === "bomb") showToast("Bombe utilisee !");
+    if (data.power === "colorReplace") showToast("Remplacement effectue !");
+  }
+
+  // --- Rafale activee ---
+  if (type === "powerUsed" && data.power === "rafale") {
+    rafaleEndsAt = data.endsAt;
+    goldPixels = data.goldPixels;
+    updateGoldDisplay();
+    updatePowersButton();
+    startBuffTimer(data.endsAt);
+    showToast("Rafale activee — 30 secondes !");
+  }
+
+  // --- Buff started (team accel, recu par tous les membres) ---
+  if (type === "buffStarted") {
+    if (data.buff === "teamAccel") {
+      teamAccelEndsAt = data.endsAt;
+      if (data.diamondPixels !== undefined) { diamondPixels = data.diamondPixels; updateDiamondDisplay(); }
+      updatePowersButton();
+      startBuffTimer(data.endsAt);
+      showToast("Acceleration d'equipe — 2 minutes !");
+    }
+  }
+
+  // --- Buff ended ---
+  if (type === "buffEnded") {
+    if (data.buff === "rafale") {
+      rafaleEndsAt = 0;
+      showToast("Rafale terminee");
+      updatePowersButton();
+    }
+    if (data.buff === "teamAccel") {
+      teamAccelEndsAt = 0;
+      showToast("Acceleration d'equipe terminee");
+      updatePowersButton();
+    }
+  }
+
+  // --- Cooldown update (apres fin de buff) ---
+  if (type === "cooldownUpdate") {
+    cooldownDuration = data.cooldown;
   }
 
   // --- Cooldown error ---
@@ -1031,6 +1431,12 @@ ws.addEventListener("message", (event) => {
     allTeams = data;
     renderTeamsList(data);
     updateTeamUI();
+    // Mettre a jour les diamants de mon equipe
+    if (myTeamId && data[myTeamId]) {
+      diamondPixels = data[myTeamId].diamondPixels || 0;
+      updateDiamondDisplay();
+      updatePowersButton();
+    }
   }
 
   // --- Search results ---

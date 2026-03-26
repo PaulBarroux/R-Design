@@ -97,6 +97,21 @@ const CANVAS_HEIGHT = 200;
 const DEFAULT_COOLDOWN = 20 * 1000;
 const INACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 min sans action = inactif
 
+// =============================================================================
+// POUVOIRS — CONFIGURATION
+// =============================================================================
+
+const POWER_BOMB_COST        = 20;   // pixels dores
+const POWER_BOMB_SIZE        = 5;    // 5x5
+const POWER_RAFALE_COST      = 40;   // pixels dores
+const POWER_RAFALE_DURATION  = 30000; // 30s
+const POWER_RAFALE_COOLDOWN  = 1000; // 1s entre chaque pixel
+const POWER_TEAM_ACCEL_COST     = 100;  // pixels diamant
+const POWER_TEAM_ACCEL_DURATION = 120000; // 2 min
+const POWER_TEAM_ACCEL_COOLDOWN = 5000;  // 5s entre chaque pixel
+const POWER_COLOR_REPLACE_COST  = 150;  // pixels diamant
+const POWER_COLOR_REPLACE_SIZE  = 10;   // 10x10
+
 const COLOR_PALETTE = [
   "#6D011A", "#BE003A", "#FF4500", "#FEA800", "#FED734", "#FFF8B8",
   "#01A268", "#00CC78", "#7FED56", "#02756F", "#019EAA", "#51E9F4",
@@ -120,6 +135,12 @@ const teams = {};
 let nextTeamId = 1;
 const pixelHistory = [];
 
+// Buffs actifs (timers serveur)
+// rafaleBuffs[playerId] = { endsAt, timer }
+const rafaleBuffs = {};
+// teamAccelBuffs[teamId] = { endsAt, timer }
+const teamAccelBuffs = {};
+
 // =============================================================================
 // GENERATION D'ID UNIQUE (5 caracteres)
 // =============================================================================
@@ -140,13 +161,30 @@ function generatePlayerId() {
 // COOLDOWN DYNAMIQUE
 // =============================================================================
 
-function getCurrentCooldown() {
+function getBaseCooldown() {
   const activePlayers = Object.values(players).filter((p) => p.active).length;
   if (activePlayers > 100) return 10 * 1000;
   if (activePlayers > 50) return 15 * 1000;
   if (activePlayers > 20) return 20 * 1000;
   return DEFAULT_COOLDOWN;
 }
+
+// Cooldown effectif pour un joueur (tient compte des buffs)
+function getPlayerCooldown(playerId) {
+  // Rafale individuelle prioritaire (1s)
+  if (rafaleBuffs[playerId] && rafaleBuffs[playerId].endsAt > Date.now()) {
+    return POWER_RAFALE_COOLDOWN;
+  }
+  // Acceleration d'equipe (5s)
+  const player = players[playerId];
+  if (player && player.teamId && teamAccelBuffs[player.teamId] && teamAccelBuffs[player.teamId].endsAt > Date.now()) {
+    return POWER_TEAM_ACCEL_COOLDOWN;
+  }
+  return getBaseCooldown();
+}
+
+// Compat : renomme pour les messages
+function getCurrentCooldown() { return getBaseCooldown(); }
 
 // =============================================================================
 // STATUT ACTIF / INACTIF
@@ -282,6 +320,8 @@ function getTeamsPublicData() {
       creatorId: team.creatorId,
       overlay: team.overlay || null,
       pixelCount: getTeamPixelCount(id),
+      diamondPixels: team.diamondPixels || 0,
+      accelEndsAt: teamAccelBuffs[id] && teamAccelBuffs[id].endsAt > Date.now() ? teamAccelBuffs[id].endsAt : null,
       members: team.members.map((pid) => ({
         id: pid,
         pseudo: players[pid] ? players[pid].pseudo : "???",
@@ -462,6 +502,171 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    // === POWER: BOMB ===
+    if (type === "useBomb") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) return;
+      const player = players[playerId];
+      const { x, y, color } = data;
+      if (player.goldPixels < POWER_BOMB_COST) {
+        send(ws, "gameError", { message: "Pas assez de pixels dores." }); return;
+      }
+      if (!COLOR_PALETTE.includes(color)) return;
+      // Valider que le carre 5x5 est au moins partiellement dans le canvas
+      if (x + POWER_BOMB_SIZE <= 0 || x >= CANVAS_WIDTH || y + POWER_BOMB_SIZE <= 0 || y >= CANVAS_HEIGHT) return;
+
+      player.goldPixels -= POWER_BOMB_COST;
+      const pixels = [];
+      for (let dy = 0; dy < POWER_BOMB_SIZE; dy++) {
+        for (let dx = 0; dx < POWER_BOMB_SIZE; dx++) {
+          const px = x + dx, py = y + dy;
+          if (px >= 0 && px < CANVAS_WIDTH && py >= 0 && py < CANVAS_HEIGHT) {
+            canvas[py][px] = color;
+            pixels.push({ x: px, y: py });
+          }
+        }
+      }
+      log.pixel(`[BOMBE] ${player.pseudo} (${x},${y}) ${color} — ${pixels.length}px`);
+      // Broadcast tous les pixels modifies
+      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, color, null);
+      send(ws, "powerUsed", { power: "bomb", goldPixels: player.goldPixels });
+      updatePlayerActivity(playerId);
+      return;
+    }
+
+    // === POWER: RAFALE ===
+    if (type === "useRafale") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) return;
+      const player = players[playerId];
+      if (player.goldPixels < POWER_RAFALE_COST) {
+        send(ws, "gameError", { message: "Pas assez de pixels dores." }); return;
+      }
+      if (rafaleBuffs[playerId] && rafaleBuffs[playerId].endsAt > Date.now()) {
+        send(ws, "gameError", { message: "Rafale deja active." }); return;
+      }
+
+      player.goldPixels -= POWER_RAFALE_COST;
+      const endsAt = Date.now() + POWER_RAFALE_DURATION;
+      const timer = setTimeout(() => {
+        delete rafaleBuffs[playerId];
+        // Notifier le joueur que la rafale est terminee
+        wss.clients.forEach((c) => {
+          if (c._playerId === playerId) {
+            send(c, "buffEnded", { buff: "rafale" });
+            send(c, "cooldownUpdate", { cooldown: getPlayerCooldown(playerId) });
+          }
+        });
+        log.info(`[RAFALE] Fin pour ${player.pseudo}`);
+      }, POWER_RAFALE_DURATION);
+      rafaleBuffs[playerId] = { endsAt, timer };
+
+      log.info(`[RAFALE] ${player.pseudo} — 30s`);
+      // Reset le cooldown pour pouvoir poser immediatement
+      player.lastPlacement = 0;
+      send(ws, "powerUsed", {
+        power: "rafale", goldPixels: player.goldPixels,
+        endsAt, cooldown: POWER_RAFALE_COOLDOWN,
+      });
+      updatePlayerActivity(playerId);
+      return;
+    }
+
+    // === POWER: TEAM ACCELERATION ===
+    if (type === "useTeamAccel") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) return;
+      const player = players[playerId];
+      if (!player.teamId || !teams[player.teamId]) {
+        send(ws, "gameError", { message: "Vous n'etes dans aucune equipe." }); return;
+      }
+      const team = teams[player.teamId];
+      if (team.creatorId !== playerId) {
+        send(ws, "gameError", { message: "Seul le chef d'equipe peut activer ce pouvoir." }); return;
+      }
+      if (team.diamondPixels < POWER_TEAM_ACCEL_COST) {
+        send(ws, "gameError", { message: "Pas assez de pixels diamant." }); return;
+      }
+      if (teamAccelBuffs[player.teamId] && teamAccelBuffs[player.teamId].endsAt > Date.now()) {
+        send(ws, "gameError", { message: "Acceleration deja active." }); return;
+      }
+
+      team.diamondPixels -= POWER_TEAM_ACCEL_COST;
+      const teamId = player.teamId;
+      const endsAt = Date.now() + POWER_TEAM_ACCEL_DURATION;
+      const timer = setTimeout(() => {
+        delete teamAccelBuffs[teamId];
+        // Notifier tous les membres
+        wss.clients.forEach((c) => {
+          const pid = c._playerId;
+          if (pid && players[pid] && players[pid].teamId === teamId) {
+            send(c, "buffEnded", { buff: "teamAccel" });
+            send(c, "cooldownUpdate", { cooldown: getPlayerCooldown(pid) });
+          }
+        });
+        log.info(`[ACCEL] Fin pour equipe "${team.name}"`);
+      }, POWER_TEAM_ACCEL_DURATION);
+      teamAccelBuffs[teamId] = { endsAt, timer };
+
+      log.info(`[ACCEL] ${player.pseudo} — equipe "${team.name}" — 2min`);
+      // Notifier tous les membres de l'equipe
+      wss.clients.forEach((c) => {
+        const pid = c._playerId;
+        if (pid && players[pid] && players[pid].teamId === teamId) {
+          send(c, "buffStarted", {
+            buff: "teamAccel", endsAt,
+            cooldown: POWER_TEAM_ACCEL_COOLDOWN,
+            diamondPixels: team.diamondPixels,
+          });
+        }
+      });
+      updatePlayerActivity(playerId);
+      return;
+    }
+
+    // === POWER: COLOR REPLACE ===
+    if (type === "useColorReplace") {
+      const playerId = ws._playerId;
+      if (!playerId || !players[playerId]) return;
+      const player = players[playerId];
+      if (!player.teamId || !teams[player.teamId]) {
+        send(ws, "gameError", { message: "Vous n'etes dans aucune equipe." }); return;
+      }
+      const team = teams[player.teamId];
+      if (team.creatorId !== playerId) {
+        send(ws, "gameError", { message: "Seul le chef d'equipe peut activer ce pouvoir." }); return;
+      }
+      if (team.diamondPixels < POWER_COLOR_REPLACE_COST) {
+        send(ws, "gameError", { message: "Pas assez de pixels diamant." }); return;
+      }
+      const { x, y, targetColor, newColor } = data;
+      if (!COLOR_PALETTE.includes(targetColor) || !COLOR_PALETTE.includes(newColor)) return;
+      if (x + POWER_COLOR_REPLACE_SIZE <= 0 || x >= CANVAS_WIDTH || y + POWER_COLOR_REPLACE_SIZE <= 0 || y >= CANVAS_HEIGHT) return;
+
+      // Compter les pixels qui matchent avant de debiter
+      const pixels = [];
+      for (let dy = 0; dy < POWER_COLOR_REPLACE_SIZE; dy++) {
+        for (let dx = 0; dx < POWER_COLOR_REPLACE_SIZE; dx++) {
+          const px = x + dx, py = y + dy;
+          if (px >= 0 && px < CANVAS_WIDTH && py >= 0 && py < CANVAS_HEIGHT && canvas[py][px] === targetColor) {
+            pixels.push({ x: px, y: py });
+          }
+        }
+      }
+
+      if (pixels.length === 0) {
+        send(ws, "gameError", { message: "Aucun pixel de cette couleur dans la zone." }); return;
+      }
+
+      team.diamondPixels -= POWER_COLOR_REPLACE_COST;
+      for (const p of pixels) canvas[p.y][p.x] = newColor;
+      log.pixel(`[REMPLACEMENT] ${player.pseudo} (${x},${y}) ${targetColor}→${newColor} — ${pixels.length}px`);
+      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, newColor, null);
+      send(ws, "powerUsed", { power: "colorReplace", diamondPixels: team.diamondPixels });
+      updatePlayerActivity(playerId);
+      return;
+    }
+
     // === JOIN ===
     if (type === "join") {
       const pseudo = (data.pseudo || "Anonyme").trim().substring(0, 16);
@@ -471,7 +676,7 @@ wss.on("connection", (ws) => {
         id: playerId, pseudo, teamId: null,
         lastPlacement: 0, totalPixels: 0,
         connectedAt: Date.now(), lastActivity: Date.now(), active: true,
-        blocked: false,
+        blocked: false, goldPixels: 0,
       };
       ws._playerId = playerId;
       log.connect(`${pseudo} a rejoint (ID: ${playerId})`);
@@ -481,6 +686,7 @@ wss.on("connection", (ws) => {
         cooldown: getCurrentCooldown(),
         palette: COLOR_PALETTE,
         canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+        goldPixels: 0, diamondPixels: 0,
       });
       broadcastPlayerList();
       broadcastToAdmins("playersUpdate", getPlayersPublicData());
@@ -495,12 +701,15 @@ wss.on("connection", (ws) => {
         players[playerId].lastActivity = Date.now();
         log.connect(`${players[playerId].pseudo} s'est reconnecte (ID: ${playerId})`);
 
+        const rp = players[playerId];
         send(ws, "joined", {
-          playerId, pseudo: players[playerId].pseudo,
-          teamId: players[playerId].teamId,
+          playerId, pseudo: rp.pseudo,
+          teamId: rp.teamId,
           cooldown: getCurrentCooldown(),
           palette: COLOR_PALETTE,
           canvasSize: { width: CANVAS_WIDTH, height: CANVAS_HEIGHT },
+          goldPixels: rp.goldPixels || 0,
+          diamondPixels: rp.teamId && teams[rp.teamId] ? teams[rp.teamId].diamondPixels : 0,
         });
         broadcastPlayerList();
         broadcastToAdmins("playersUpdate", getPlayersPublicData());
@@ -535,7 +744,7 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      const cooldown = getCurrentCooldown();
+      const cooldown = getPlayerCooldown(playerId);
       const timeSinceLast = Date.now() - player.lastPlacement;
       if (timeSinceLast < cooldown) {
         const remaining = Math.ceil((cooldown - timeSinceLast) / 1000);
@@ -543,16 +752,31 @@ wss.on("connection", (ws) => {
         return;
       }
 
+      const hasRafale = rafaleBuffs[playerId] && rafaleBuffs[playerId].endsAt > Date.now();
+
       canvas[y][x] = color;
       player.lastPlacement = Date.now();
       player.totalPixels++;
       updatePlayerActivity(playerId);
-      pixelHistory.push({ playerId, x, y, color, timestamp: Date.now() });
 
-      log.pixel(`${player.pseudo}  (${x},${y})  ${color}`);
-      send(ws, "pixelPlaced", { x, y, color, cooldown, nextPlacement: Date.now() + cooldown });
+      if (!hasRafale) {
+        // Points et ressources uniquement hors rafale
+        pixelHistory.push({ playerId, x, y, color, timestamp: Date.now() });
+        player.goldPixels++;
+        if (player.teamId && teams[player.teamId]) {
+          teams[player.teamId].diamondPixels++;
+        }
+      }
+
+      log.pixel(`${player.pseudo}  (${x},${y})  ${color}${hasRafale ? " [RAFALE]" : ""}`);
+      send(ws, "pixelPlaced", {
+        x, y, color, cooldown,
+        nextPlacement: Date.now() + cooldown,
+        goldPixels: player.goldPixels,
+        diamondPixels: player.teamId && teams[player.teamId] ? teams[player.teamId].diamondPixels : 0,
+      });
       broadcastPixelUpdate(x, y, color, playerId);
-      broadcastLeaderboard();
+      if (!hasRafale) broadcastLeaderboard();
     }
 
     // === CREATE TEAM ===
@@ -577,6 +801,7 @@ wss.on("connection", (ws) => {
       teams[teamId] = {
         id: teamId, name, color, creatorId: playerId,
         members: [playerId], overlay: null, createdAt: Date.now(),
+        diamondPixels: 0,
       };
       player.teamId = teamId;
       updatePlayerActivity(playerId);

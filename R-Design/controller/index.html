@@ -63,6 +63,7 @@
           <div class="player-left">
             <span id="display-pseudo">—</span>
             <span id="display-points" class="player-points">—</span>
+            <span id="display-gold" class="player-gold">0 ✦</span>
           </div>
           <!-- Timer toujours visible -->
           <div id="cooldown-bar">
@@ -98,6 +99,15 @@
 
         <!-- Bottom sheet : tous les controles -->
         <div id="bottom-sheet" class="bottom-sheet">
+          <!-- Barre de cooldown horizontale en haut de la sheet -->
+          <div id="sheet-timer-bar" class="sheet-timer-bar">
+            <div id="sheet-timer-fill" class="sheet-timer-fill"></div>
+          </div>
+          <!-- Barre de buff (rafale / accel) -->
+          <div id="sheet-buff-bar" class="sheet-buff-bar hidden">
+            <div id="sheet-buff-fill" class="sheet-buff-fill"></div>
+          </div>
+
           <div class="sheet-handle"></div>
 
           <!-- Barre d'edition overlay (visible uniquement en mode edition) -->
@@ -134,13 +144,65 @@
           </div>
 
           <!-- Palette de couleurs -->
-          <span class="sheet-section-label">Couleurs</span>
+          <span id="palette-label" class="sheet-section-label">Couleurs</span>
           <div id="palette"></div>
 
-          <!-- Bouton de confirmation -->
-          <button id="btn-confirm-pixel" class="btn-confirm" disabled>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2" transform="rotate(45 12 12)"/></svg>Poser
-          </button>
+          <!-- Menu pouvoirs (remplace la palette quand ouvert) -->
+          <div id="powers-menu" class="powers-menu hidden">
+            <span class="sheet-section-label">Pouvoirs individuels</span>
+            <div class="powers-resources">
+              <span class="power-resource gold">✦ <span id="powers-gold-count">0</span></span>
+              <span class="power-resource diamond hidden" id="powers-diamond-wrap">◆ <span id="powers-diamond-count">0</span></span>
+            </div>
+            <div class="powers-list">
+              <button class="power-item" data-power="bomb">
+                <span class="power-icon">💣</span>
+                <span class="power-info">
+                  <span class="power-name">Bombe</span>
+                  <span class="power-desc">Remplir 5×5 pixels</span>
+                </span>
+                <span class="power-cost">20 ✦</span>
+              </button>
+              <button class="power-item" data-power="rafale">
+                <span class="power-icon">⚡</span>
+                <span class="power-info">
+                  <span class="power-name">Rafale</span>
+                  <span class="power-desc">1 pixel/sec pendant 30s</span>
+                </span>
+                <span class="power-cost">40 ✦</span>
+              </button>
+            </div>
+            <div id="powers-team-section" class="hidden">
+              <span class="sheet-section-label">Pouvoirs d'equipe (chef)</span>
+              <div class="powers-list">
+                <button class="power-item" data-power="teamAccel">
+                  <span class="power-icon">🚀</span>
+                  <span class="power-info">
+                    <span class="power-name">Acceleration</span>
+                    <span class="power-desc">Equipe : cooldown 5s pendant 2min</span>
+                  </span>
+                  <span class="power-cost">100 ◆</span>
+                </button>
+                <button class="power-item" data-power="colorReplace">
+                  <span class="power-icon">🎨</span>
+                  <span class="power-info">
+                    <span class="power-name">Remplacement</span>
+                    <span class="power-desc">Remplacer une couleur dans 10×10</span>
+                  </span>
+                  <span class="power-cost">150 ◆</span>
+                </button>
+              </div>
+            </div>
+            <button id="btn-powers-close" class="btn-secondary" style="margin-top:0.5rem">Retour</button>
+          </div>
+
+          <!-- Boutons d'action : pouvoirs + confirmation -->
+          <div class="confirm-row">
+            <button id="btn-powers" class="btn-powers" disabled title="Pouvoirs">⚡</button>
+            <button id="btn-confirm-pixel" class="btn-confirm" disabled>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2" transform="rotate(45 12 12)"/></svg>Poser
+            </button>
+          </div>
 
         </div><!-- /bottom-sheet -->
       </div>
@@ -252,6 +314,9 @@
 
     </div>
 
+
+    <!-- Toast notifications -->
+    <div id="toast-container" class="toast-container"></div>
 
     <script src="script.js"></script>
   </body>
