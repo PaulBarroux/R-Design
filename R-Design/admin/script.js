@@ -33,6 +33,11 @@ const zoomLevelEl     = document.getElementById("zoom-level");
 const bottomSheet     = document.getElementById("bottom-sheet");
 const paletteEl       = document.getElementById("palette");
 
+const cooldownInput      = document.getElementById("cooldown-input");
+const btnCooldownApply   = document.getElementById("btn-cooldown-apply");
+const cooldownCurrent    = document.getElementById("cooldown-current");
+const cooldownPresetBtns = document.querySelectorAll(".cooldown-preset-btn");
+
 const playersListEl   = document.getElementById("players-list");
 const playersCountEl  = document.getElementById("players-count");
 const teamsListEl     = document.getElementById("teams-list");
@@ -65,6 +70,8 @@ const tlExportOptions   = document.getElementById("tl-export-options");
 const tlFormatBtns      = document.querySelectorAll(".tl-format-btn");
 const btnTlRecord       = document.getElementById("btn-tl-record");
 const tlExportStatus    = document.getElementById("tl-export-status");
+const tlSpeedInput      = document.getElementById("tl-speed-input");
+const btnTlSpeedApply   = document.getElementById("btn-tl-speed-apply");
 
 const adminOverlaysContainer = document.getElementById("admin-overlays-container");
 const templatesPanel         = document.getElementById("templates-panel");
@@ -270,6 +277,9 @@ function connectWS() {
     }
     if (type === "historyData") {
       handleHistoryData(data);
+    }
+    if (type === "configUpdate") {
+      updateCooldownDisplay(data.cooldown);
     }
   });
 }
@@ -583,6 +593,37 @@ function updatePixelCursor() {
   pixelCursor.style.width  = zoomLevel + "px";
   pixelCursor.style.height = zoomLevel + "px";
 }
+
+// =============================================================================
+// COOLDOWN GLOBAL — contrôle admin
+// =============================================================================
+
+function updateCooldownDisplay(ms) {
+  const secs = Math.round(ms / 1000);
+  cooldownCurrent.textContent = `actuel : ${secs}s`;
+  cooldownInput.value = secs;
+  cooldownPresetBtns.forEach((btn) => {
+    btn.classList.toggle("active", parseInt(btn.dataset.secs) === secs);
+  });
+}
+
+function applyCooldown(secs) {
+  send("adminSetCooldown", { seconds: secs });
+}
+
+cooldownPresetBtns.forEach((btn) => {
+  btn.addEventListener("click", () => applyCooldown(parseInt(btn.dataset.secs)));
+});
+
+btnCooldownApply.addEventListener("click", () => {
+  const v = parseInt(cooldownInput.value);
+  if (!isFinite(v) || v < 1 || v > 300) return;
+  applyCooldown(v);
+});
+
+cooldownInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") btnCooldownApply.click();
+});
 
 // =============================================================================
 // ONGLET JOUEURS — bloquer / debloquer
@@ -1014,8 +1055,19 @@ tlSpeedBtns.forEach((btn) => {
     tlSpeed = parseInt(btn.dataset.speed);
     tlSpeedBtns.forEach(b => b.classList.remove("active"));
     btn.classList.add("active");
+    tlSpeedInput.value = "";
   });
 });
+
+function applyCustomSpeed() {
+  const v = parseInt(tlSpeedInput.value);
+  if (!isFinite(v) || v < 1 || v > 10000) return;
+  tlSpeed = v;
+  tlSpeedBtns.forEach(b => b.classList.remove("active"));
+}
+
+btnTlSpeedApply.addEventListener("click", applyCustomSpeed);
+tlSpeedInput.addEventListener("keydown", (e) => { if (e.key === "Enter") applyCustomSpeed(); });
 
 // --- Scrubbing sur la progress bar ---
 function tlGetMsFromEvent(e) {

@@ -95,6 +95,7 @@ app.get("/", (req, res) => {
 const CANVAS_WIDTH = 200;
 const CANVAS_HEIGHT = 200;
 const DEFAULT_COOLDOWN = 20 * 1000;
+let activeCooldown = DEFAULT_COOLDOWN; // modifiable par l'admin en live
 const INACTIVE_THRESHOLD = 5 * 60 * 1000; // 5 min sans action = inactif
 
 // =============================================================================
@@ -162,6 +163,7 @@ function generatePlayerId() {
 // =============================================================================
 
 function getBaseCooldown() {
+  if (activeCooldown !== DEFAULT_COOLDOWN) return activeCooldown;
   const activePlayers = Object.values(players).filter((p) => p.active).length;
   if (activePlayers > 100) return 10 * 1000;
   if (activePlayers > 50) return 15 * 1000;
@@ -975,6 +977,24 @@ wss.on("connection", (ws) => {
     }
 
     // === ADMIN GET HISTORY (timelapse) ===
+    if (type === "adminSetCooldown") {
+      if (!ws._isAdmin) return;
+      const secs = Number(data.seconds);
+      if (!isFinite(secs) || secs < 1 || secs > 300) return;
+      activeCooldown = Math.round(secs * 1000);
+      // Notifier tous les joueurs connectés
+      wss.clients.forEach((client) => {
+        if (client.readyState === 1 && !client._isAdmin) {
+          const pid = client._playerId;
+          send(client, "cooldownUpdate", { cooldown: getPlayerCooldown(pid), adminChange: true });
+        }
+      });
+      // Confirmer à l'admin
+      send(ws, "configUpdate", { cooldown: activeCooldown });
+      log.info(`Cooldown changé à ${secs}s par l'admin`);
+      return;
+    }
+
     if (type === "adminGetHistory") {
       if (!ws._isAdmin) return;
       send(ws, "historyData", {

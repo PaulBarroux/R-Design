@@ -98,6 +98,21 @@
            ONGLET JOUEURS
            ============================================================ -->
       <div id="tab-players" class="tab-content hidden">
+        <div id="cooldown-control" class="cooldown-control">
+          <span class="cooldown-control-label">Cooldown global</span>
+          <div class="cooldown-presets">
+            <button class="cooldown-preset-btn" data-secs="5">5s</button>
+            <button class="cooldown-preset-btn" data-secs="10">10s</button>
+            <button class="cooldown-preset-btn" data-secs="20">20s</button>
+            <button class="cooldown-preset-btn" data-secs="30">30s</button>
+            <button class="cooldown-preset-btn" data-secs="60">60s</button>
+          </div>
+          <div class="cooldown-custom-row">
+            <input type="number" id="cooldown-input" class="cooldown-input" min="1" max="300" placeholder="sec" />
+            <button id="btn-cooldown-apply" class="btn-cooldown-apply">Appliquer</button>
+            <span id="cooldown-current" class="cooldown-current">actuel : 20s</span>
+          </div>
+        </div>
         <div class="admin-tab-header">
           <span class="admin-tab-count" id="players-count">0</span> joueurs
         </div>
@@ -176,8 +191,11 @@
               <button class="tl-speed-btn" data-speed="50">×50</button>
               <button class="tl-speed-btn active" data-speed="200">×200</button>
               <button class="tl-speed-btn" data-speed="500">×500</button>
-              <button class="tl-speed-btn" data-speed="1000">×1000</button>
-              <button class="tl-speed-btn" data-speed="5000">×5000</button>
+              <div class="tl-speed-custom">
+                <span class="tl-speed-custom-label">×</span>
+                <input type="number" id="tl-speed-input" class="tl-speed-input" min="1" max="10000" placeholder="…" />
+                <button id="btn-tl-speed-apply" class="tl-speed-apply-btn">OK</button>
+              </div>
             </div>
           </div>
 

@@ -13,7 +13,7 @@ const ws = new WebSocket(`ws://${location.host}`);
   const qr = qrcode(0, "L");
   qr.addData(url);
   qr.make();
-  document.getElementById("qr-code").innerHTML = qr.createImgTag(4, 0);
+  document.getElementById("qr-code").innerHTML = qr.createImgTag(6, 0);
 })();
 
 // =============================================================================

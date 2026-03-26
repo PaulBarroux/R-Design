@@ -37,6 +37,83 @@
   background: #f8f8f8;
 }
 
+/* Contrôle cooldown global */
+.cooldown-control {
+  width: 100%;
+  max-width: 480px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px solid #e8e8e8;
+  flex-shrink: 0;
+}
+
+.cooldown-control-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #888;
+}
+
+.cooldown-presets {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cooldown-preset-btn {
+  background: none;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 3px 10px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #444;
+}
+
+.cooldown-preset-btn:hover { border-color: #3690EA; color: #3690EA; }
+.cooldown-preset-btn.active { border-color: #3690EA; background: #3690EA11; color: #3690EA; }
+
+.cooldown-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cooldown-input {
+  width: 64px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.btn-cooldown-apply {
+  background: #222;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-cooldown-apply:hover { background: #000; }
+
+.cooldown-current {
+  font-size: 0.72rem;
+  color: #aaa;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
 /* Compteur en haut de chaque tab admin */
 .admin-tab-header {
   width: 100%;
@@ -466,6 +543,50 @@
 .tl-speed-buttons {
   display: flex;
   gap: 4px;
+  align-items: center;
+}
+
+.tl-speed-custom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.tl-speed-custom-label {
+  font-size: 0.68rem;
+  color: #666;
+}
+
+.tl-speed-input {
+  width: 48px;
+  background: #222;
+  border: 1px solid #444;
+  color: #ccc;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 0.68rem;
+  text-align: center;
+}
+
+.tl-speed-input:focus {
+  outline: none;
+  border-color: #888;
+}
+
+.tl-speed-apply-btn {
+  background: none;
+  border: 1px solid #444;
+  color: #888;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.tl-speed-apply-btn:hover {
+  border-color: #e94560;
+  color: #e94560;
 }
 
 .tl-speed-btn {

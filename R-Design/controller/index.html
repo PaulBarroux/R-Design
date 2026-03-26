@@ -333,50 +333,63 @@
     <!-- Modal Onboarding (affichée uniquement à la création du compte) -->
     <div id="modal-onboarding" class="modal hidden">
       <div class="modal-onboarding-content">
-        <h2 class="onboarding-title">Bienvenue sur r/design ! 🎨</h2>
-        <p class="onboarding-intro">Voici comment fonctionne le jeu :</p>
 
-        <div class="onboarding-section">
-          <div class="onboarding-icon">🖼️</div>
-          <div>
-            <strong>Le Canva</strong>
-            <p>Un canvas partagé de 200×200 pixels affiché sur grand écran. Tout le monde place ses pixels en temps réel.</p>
+        <!-- Indicateur d'étapes -->
+        <div class="onboarding-dots">
+          <span class="onboarding-dot active"></span>
+          <span class="onboarding-dot"></span>
+          <span class="onboarding-dot"></span>
+        </div>
+
+        <!-- Étape 1 : Pixel War -->
+        <div class="onboarding-step" id="onboarding-step-1">
+          <div class="onboarding-step-icon">🖼️</div>
+          <h2 class="onboarding-title">Pixel War</h2>
+          <p class="onboarding-desc">Un canvas de 200×200 pixels partagé entre tous les joueurs, affiché sur grand écran.</p>
+          <p class="onboarding-desc">Sélectionne une couleur et place ton pixel. Chaque pixel placé compte comme un point dans le classement. Mais attention — un <strong>délai</strong> s'applique entre chaque placement. Vise bien !</p>
+        </div>
+
+        <!-- Étape 2 : Pouvoirs -->
+        <div class="onboarding-step hidden" id="onboarding-step-2">
+          <div class="onboarding-step-icon">⚡</div>
+          <h2 class="onboarding-title">Pouvoirs</h2>
+          <p class="onboarding-desc">Tu accumules des ressources en jouant, déblocant des pouvoirs spéciaux.</p>
+          <div class="onboarding-resource">
+            <span class="onboarding-resource-icon">✦</span>
+            <div>
+              <strong>Pixels dorés</strong> — gagnés à chaque pixel placé
+              <ul class="onboarding-list">
+                <li>💣 Bombe <span class="onboarding-cost">20 ✦</span> — remplit un carré 5×5</li>
+                <li>⚡ Rafale <span class="onboarding-cost">40 ✦</span> — cooldown 1s pendant 30s</li>
+              </ul>
+            </div>
+          </div>
+          <div class="onboarding-resource">
+            <span class="onboarding-resource-icon">◆</span>
+            <div>
+              <strong>Pixels diamant</strong> — gagnés avec ton équipe
+              <ul class="onboarding-list">
+                <li>🚀 Accélération <span class="onboarding-cost">100 ◆</span> — cooldown 5s pour tous</li>
+                <li>🎨 Remplacement <span class="onboarding-cost">150 ◆</span> — remplace une couleur sur 10×10</li>
+              </ul>
+            </div>
           </div>
         </div>
 
-        <div class="onboarding-section">
-          <div class="onboarding-icon">⏱️</div>
-          <div>
-            <strong>Cooldown</strong>
-            <p>Un délai s'applique entre chaque pixel placé. Choisit ta couleur et vise bien !</p>
-          </div>
+        <!-- Étape 3 : Équipes & Templates -->
+        <div class="onboarding-step hidden" id="onboarding-step-3">
+          <div class="onboarding-step-icon">👥</div>
+          <h2 class="onboarding-title">Équipes & Templates</h2>
+          <p class="onboarding-desc">Rejoins ou crée une équipe depuis l'onglet <strong>Équipe</strong>. Jouer en équipe permet d'accumuler des pixels diamant ◆ et d'accéder aux pouvoirs collectifs.</p>
+          <p class="onboarding-desc">Le créateur d'équipe peut importer un <strong>template</strong> — une image de référence visible uniquement par les membres — pour coordonner le placement de pixels sur le canvas.</p>
         </div>
 
-        <div class="onboarding-section">
-          <div class="onboarding-icon">✦</div>
-          <div>
-            <strong>Pixels dorés</strong>
-            <p>Tu gagnes 1 ✦ à chaque pixel placé. Ils servent à utiliser des pouvoirs individuels :</p>
-            <ul class="onboarding-list">
-              <li>💣 <strong>Bombe</strong> (20 ✦) — remplit un carré 5×5</li>
-              <li>⚡ <strong>Rafale</strong> (40 ✦) — cooldown réduit à 1s pendant 30s</li>
-            </ul>
-          </div>
+        <!-- Navigation -->
+        <div class="onboarding-nav">
+          <button id="btn-onboarding-prev" class="btn-outlined onboarding-hidden">← Retour</button>
+          <button id="btn-onboarding-next" class="btn-black">Suivant →</button>
         </div>
 
-        <div class="onboarding-section">
-          <div class="onboarding-icon">◆</div>
-          <div>
-            <strong>Pixels diamant</strong>
-            <p>Gagnés en équipe à chaque pixel placé. Le créateur d'équipe peut activer :</p>
-            <ul class="onboarding-list">
-              <li>🚀 <strong>Accélération équipe</strong> (100 ◆) — cooldown 5s pour tous, 2 min</li>
-              <li>🎨 <strong>Remplacement couleur</strong> (150 ◆) — remplace une couleur sur 10×10</li>
-            </ul>
-          </div>
-        </div>
-
-        <button id="btn-onboarding-close" class="btn-black">C'est parti !</button>
       </div>
     </div>
 

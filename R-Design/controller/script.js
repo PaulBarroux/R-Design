@@ -27,8 +27,11 @@ const revealId = document.getElementById("reveal-id");
 const btnContinue = document.getElementById("btn-continue");
 const btnCopyId = document.getElementById("btn-copy-id");
 const btnSmsId = document.getElementById("btn-sms-id");
-const modalOnboarding = document.getElementById("modal-onboarding");
-const btnOnboardingClose = document.getElementById("btn-onboarding-close");
+const modalOnboarding      = document.getElementById("modal-onboarding");
+const btnOnboardingNext    = document.getElementById("btn-onboarding-next");
+const btnOnboardingPrev    = document.getElementById("btn-onboarding-prev");
+const onboardingStepEls    = document.querySelectorAll(".onboarding-step");
+const onboardingDotEls     = document.querySelectorAll(".onboarding-dot");
 
 // Game screen
 const displayPseudo      = document.getElementById("display-pseudo");
@@ -300,8 +303,27 @@ btnContinue.addEventListener("click", () => {
   modalOnboarding.classList.remove("hidden");
 });
 
-btnOnboardingClose.addEventListener("click", () => {
-  modalOnboarding.classList.add("hidden");
+let onboardingStep = 1;
+
+function showOnboardingStep(step) {
+  onboardingStep = step;
+  onboardingStepEls.forEach((el, i) => el.classList.toggle("hidden", i + 1 !== step));
+  onboardingDotEls.forEach((el, i) => el.classList.toggle("active", i + 1 === step));
+  btnOnboardingPrev.classList.toggle("onboarding-hidden", step === 1);
+  btnOnboardingNext.textContent = step === 3 ? "C'est parti !" : "Suivant →";
+}
+
+btnOnboardingNext.addEventListener("click", () => {
+  if (onboardingStep < 3) {
+    showOnboardingStep(onboardingStep + 1);
+  } else {
+    modalOnboarding.classList.add("hidden");
+    showOnboardingStep(1);
+  }
+});
+
+btnOnboardingPrev.addEventListener("click", () => {
+  if (onboardingStep > 1) showOnboardingStep(onboardingStep - 1);
 });
 
 // Copie universelle (fonctionne sans HTTPS)
@@ -1546,6 +1568,9 @@ ws.addEventListener("message", (event) => {
     sheetTimerBar.classList.add("ready");
     sheetTimerText.textContent = "Pret !";
     sheetTimerFill.style.width = "100%";
+    if (data.adminChange) {
+      showToast(`⏱ Cooldown changé : ${Math.round(data.cooldown / 1000)}s`);
+    }
   }
 
   // --- Cooldown error ---
