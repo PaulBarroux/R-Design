@@ -125,6 +125,14 @@ const btnCreateTeam = document.getElementById("btn-create-team");
 const teamSearchInput = document.getElementById("team-search");
 const teamsListEl = document.getElementById("teams-list");
 
+// Avatar picker
+const createAvatarPreview = document.getElementById("create-avatar-preview");
+const btnAvatarEmoji       = document.getElementById("btn-avatar-emoji");
+const btnAvatarImage       = document.getElementById("btn-avatar-image");
+const btnAvatarReset       = document.getElementById("btn-avatar-reset");
+const emojiPickerGrid      = document.getElementById("emoji-picker-grid");
+const avatarFileInput      = document.getElementById("avatar-file-input");
+
 // Team — vue detail
 const btnBackTeams = document.getElementById("btn-back-teams");
 const detailTeamDot = document.getElementById("detail-team-dot");
@@ -133,6 +141,14 @@ const detailTeamStats = document.getElementById("detail-team-stats");
 const detailMembersList = document.getElementById("detail-members-list");
 const btnDetailJoin = document.getElementById("btn-detail-join");
 const btnDetailLeave = document.getElementById("btn-detail-leave");
+const btnDetailInvite = document.getElementById("btn-detail-invite");
+
+// Modal Invite
+const modalInvite = document.getElementById("modal-invite");
+const btnInviteClose = document.getElementById("btn-invite-close");
+const modalInviteTeamName = document.getElementById("modal-invite-team-name");
+const inviteQrEl = document.getElementById("invite-qr");
+const inviteUrlEl = document.getElementById("invite-url");
 
 // =============================================================================
 // ETAT LOCAL
@@ -150,6 +166,7 @@ let allTeams = {};
 let myTeamId = null;
 let selectedTeamColor = "#3690EA";
 let detailTeamId = null;
+let createAvatarData = null; // { type: 'emoji'|'image', value } or null
 
 // Overlay state
 let overlayVisible = true;         // toggle local (membre)
@@ -318,8 +335,74 @@ btnCopyDisplayId.addEventListener("click", () => {
 });
 
 // =============================================================================
+// AVATAR D'EQUIPE
+// =============================================================================
+
+const TEAM_EMOJIS = [
+  "🔥","⚡","🌊","🍀","🦁","🐺","🦊","🦅","🐉","🌙",
+  "⭐","💎","🏆","🎯","🚀","⚔️","🛡️","🎨","🎭","🎪",
+  "🌈","❄️","🌋","🎸","🎮","🏴","🦄","🐸","😈","💀",
+  "🧨","🔮","🌸","🐲","👑","⚡","🍕","🤖","👾","🎃",
+];
+
+function buildEmojiPicker() {
+  emojiPickerGrid.innerHTML = "";
+  TEAM_EMOJIS.forEach((em) => {
+    const btn = document.createElement("button");
+    btn.className = "emoji-option";
+    btn.type = "button";
+    btn.textContent = em;
+    btn.addEventListener("click", () => {
+      createAvatarData = { type: "emoji", value: em };
+      emojiPickerGrid.querySelectorAll(".emoji-option").forEach(b => b.classList.remove("selected"));
+      btn.classList.add("selected");
+      emojiPickerGrid.classList.add("hidden");
+      updateAvatarPreview();
+    });
+    emojiPickerGrid.appendChild(btn);
+  });
+}
+
+function updateAvatarPreview() {
+  applyAvatarToEl(createAvatarPreview, createAvatarData, selectedTeamColor);
+}
+
+function applyAvatarToEl(el, avatar, teamColor) {
+  const color = teamColor || "#3690EA";
+  el.style.backgroundImage = "";
+  el.style.backgroundSize = "";
+  el.style.backgroundPosition = "";
+  el.textContent = "";
+  if (!avatar) {
+    el.style.backgroundColor = color;
+  } else if (avatar.type === "emoji") {
+    el.style.backgroundColor = color + "33";
+    el.textContent = avatar.value;
+  } else if (avatar.type === "image") {
+    el.style.backgroundColor = color;
+    el.style.backgroundImage = `url(${avatar.value})`;
+    el.style.backgroundSize = "cover";
+    el.style.backgroundPosition = "center";
+  }
+}
+
+function makeAvatarEl(team, size) {
+  const el = document.createElement("div");
+  el.className = "team-avatar";
+  el.style.width = size + "px";
+  el.style.height = size + "px";
+  el.style.fontSize = Math.round(size * 0.55) + "px";
+  applyAvatarToEl(el, team.avatar || null, team.color);
+  return el;
+}
+
+// =============================================================================
 // PALETTE
 // =============================================================================
+
+const LIGHT_COLORS = new Set([
+  "#FFFFFF","#FFF8B8","#D5D7D9","#D4D7D9","#94B3FF","#51E9F4","#FED734","#FEA800","#FFB470","#FF99AA",
+]);
 
 function buildPalette(colors) {
   palette = colors;
@@ -328,9 +411,7 @@ function buildPalette(colors) {
     const btn = document.createElement("div");
     btn.className = "palette-color";
     btn.style.background = color;
-    if (["#FFFFFF", "#D4D7D9", "#D5D7D9", "#FFF8B8", "#94B3FF", "#51E9F4", "#FEA800", "#FED734"].includes(color)) {
-      btn.style.border = "2px solid #555";
-    }
+    if (LIGHT_COLORS.has(color)) btn.dataset.light = "";
     btn.addEventListener("click", () => {
       document.querySelectorAll(".palette-color").forEach((b) => b.classList.remove("selected"));
       btn.classList.add("selected");
@@ -1010,6 +1091,7 @@ teamColors.forEach((color) => {
     document.querySelectorAll(".team-color-option").forEach((b) => b.classList.remove("selected"));
     btn.classList.add("selected");
     selectedTeamColor = color;
+    updateAvatarPreview();
   });
   teamColorPicker.appendChild(btn);
 });
@@ -1025,10 +1107,43 @@ btnToggleCreate.addEventListener("click", () => {
 btnCreateTeam.addEventListener("click", () => {
   const name = teamNameInput.value.trim();
   if (!name) { teamNameInput.style.borderColor = "#e94560"; return; }
-  send("createTeam", { name, color: selectedTeamColor });
+  send("createTeam", { name, color: selectedTeamColor, avatar: createAvatarData });
   createTeamForm.classList.add("hidden");
   btnToggleCreate.textContent = "+ Creer une equipe";
   teamNameInput.value = "";
+  createAvatarData = null;
+  updateAvatarPreview();
+  emojiPickerGrid.classList.add("hidden");
+});
+
+btnAvatarEmoji.addEventListener("click", () => {
+  if (emojiPickerGrid.classList.contains("hidden")) {
+    buildEmojiPicker();
+    emojiPickerGrid.classList.remove("hidden");
+  } else {
+    emojiPickerGrid.classList.add("hidden");
+  }
+});
+
+btnAvatarImage.addEventListener("click", () => {
+  avatarFileInput.value = "";
+  avatarFileInput.click();
+});
+
+btnAvatarReset.addEventListener("click", () => {
+  createAvatarData = null;
+  emojiPickerGrid.classList.add("hidden");
+  updateAvatarPreview();
+});
+
+avatarFileInput.addEventListener("change", () => {
+  const file = avatarFileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    openCropModal(e.target.result, "avatar");
+  };
+  reader.readAsDataURL(file);
 });
 
 // Recherche d'equipes
@@ -1054,14 +1169,19 @@ function renderTeamsList(teamsData) {
     const item = document.createElement("div");
     item.className = "team-item";
     const isMine = team.id === myTeamId;
-    item.innerHTML = `
-      <div class="team-dot" style="background: ${team.color}"></div>
-      <div class="team-item-info">
-        <div class="team-item-name">${team.name}${isMine ? ' <span class="member-role">Mon equipe</span>' : ""}</div>
-        <div class="team-item-stats">${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px · ${team.diamondPixels || 0} ◆</div>
-      </div>
-      <span style="font-size:0.8rem; opacity:0.4;">›</span>
+    const dot = makeAvatarEl(team, 32);
+    const infoEl = document.createElement("div");
+    infoEl.className = "team-item-info";
+    infoEl.innerHTML = `
+      <div class="team-item-name">${team.name}${isMine ? ' <span class="member-role">Mon equipe</span>' : ""}</div>
+      <div class="team-item-stats">${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px · ${team.diamondPixels || 0} ◆</div>
     `;
+    const arrow = document.createElement("span");
+    arrow.style.cssText = "font-size:0.8rem; opacity:0.4;";
+    arrow.textContent = "›";
+    item.appendChild(dot);
+    item.appendChild(infoEl);
+    item.appendChild(arrow);
     item.addEventListener("click", () => showTeamDetail(team.id));
     teamsListEl.appendChild(item);
   });
@@ -1076,7 +1196,12 @@ function showTeamDetail(teamId) {
   const team = allTeams[teamId];
   if (!team) return;
 
-  detailTeamDot.style.background = team.color;
+  detailTeamDot.innerHTML = "";
+  const av = makeAvatarEl(team, 40);
+  detailTeamDot.appendChild(av);
+  detailTeamDot.style.background = "transparent";
+  detailTeamDot.style.width = "40px";
+  detailTeamDot.style.height = "40px";
   detailTeamName.textContent = team.name;
   detailTeamStats.textContent = `${team.memberCount} membre${team.memberCount > 1 ? "s" : ""} · ${team.pixelCount || 0} px · ${team.diamondPixels || 0} ◆`;
 
@@ -1143,6 +1268,43 @@ btnDetailLeave.addEventListener("click", () => {
   send("leaveTeam", {});
 });
 
+btnDetailInvite.addEventListener("click", () => {
+  if (!detailTeamId || !allTeams[detailTeamId]) return;
+  openInviteModal(detailTeamId);
+});
+
+btnInviteClose.addEventListener("click", closeInviteModal);
+modalInvite.addEventListener("click", (e) => {
+  if (e.target === modalInvite) closeInviteModal();
+});
+
+let inviteQrInstance = null;
+
+function openInviteModal(teamId) {
+  const team = allTeams[teamId];
+  if (!team) return;
+  const url = `${location.origin}/controller?team=${teamId}`;
+  modalInviteTeamName.textContent = team.name;
+  inviteUrlEl.textContent = url;
+  // Clear previous QR
+  inviteQrEl.innerHTML = "";
+  inviteQrInstance = new QRCode(inviteQrEl, {
+    text: url,
+    width: 200,
+    height: 200,
+    colorDark: "#000000",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.M
+  });
+  modalInvite.classList.remove("hidden");
+}
+
+function closeInviteModal() {
+  modalInvite.classList.add("hidden");
+  inviteQrEl.innerHTML = "";
+  inviteQrInstance = null;
+}
+
 // =============================================================================
 // EQUIPES — BANDEAU + PLAYER BAR
 // =============================================================================
@@ -1157,7 +1319,9 @@ function updateTeamUI() {
     const team = allTeams[myTeamId];
     isCreator = team.creatorId === playerId;
 
-    bannerDot.style.background = team.color;
+    bannerDot.innerHTML = "";
+    bannerDot.appendChild(makeAvatarEl(team, 36));
+    bannerDot.style.background = "transparent";
     bannerName.textContent = team.name;
     // Fond teinté avec la couleur de l'equipe via CSS custom properties
     myTeamBanner.style.setProperty("--team-color-bg", team.color + "22");
@@ -1238,7 +1402,7 @@ ws.addEventListener("message", (event) => {
     profilePseudo.textContent = data.pseudo;
     displayId.textContent = data.playerId;
     const initPts = data.totalPixels || 0;
-    displayPoints.textContent = initPts + " pt" + (initPts !== 1 ? "s" : "");
+    displayPoints.textContent = initPts + " px";
     displayPointsProfile.textContent = displayPoints.textContent;
 
     if (data.teamId) myTeamId = data.teamId;
@@ -1279,6 +1443,12 @@ ws.addEventListener("message", (event) => {
       screenJoin.classList.add("hidden");
       screenIdReveal.classList.remove("hidden");
     }
+
+    // Auto-join team depuis URL ?team=XXX (lien d'invitation)
+    const urlTeamId = new URLSearchParams(location.search).get("team");
+    if (urlTeamId && !data.teamId) {
+      send("joinTeam", { teamId: urlTeamId });
+    }
   }
 
   // --- Erreur de join/reconnexion (in-game) ---
@@ -1297,7 +1467,7 @@ ws.addEventListener("message", (event) => {
     startCooldown(data.nextPlacement, data.cooldown);
     if (data.totalPixels !== undefined) {
       const pts = data.totalPixels;
-      displayPoints.textContent = pts + " pt" + (pts !== 1 ? "s" : "");
+      displayPoints.textContent = pts + " px";
       displayPointsProfile.textContent = displayPoints.textContent;
     }
     if (data.goldPixels !== undefined) {
@@ -1333,7 +1503,7 @@ ws.addEventListener("message", (event) => {
     updateGoldDisplay();
     updatePowersButton();
     startBuffTimer(data.endsAt, "Rafale");
-    showToast("Rafale activee — 30 secondes !");
+    showToast("Rafale activée — 30 secondes !");
   }
 
   // --- Buff started (team accel, recu par tous les membres) ---
@@ -1342,8 +1512,8 @@ ws.addEventListener("message", (event) => {
       teamAccelEndsAt = data.endsAt;
       if (data.diamondPixels !== undefined) { diamondPixels = data.diamondPixels; updateDiamondDisplay(); }
       updatePowersButton();
-      startBuffTimer(data.endsAt, "Accel");
-      showToast("Acceleration d'equipe — 2 minutes !");
+      startBuffTimer(data.endsAt, "Accélération");
+      showToast("Accélération d'équipe — 2 minutes !");
     }
   }
 
@@ -1723,6 +1893,7 @@ btnOverlayDelete.addEventListener("click", () => {
 // CROP MODAL
 // =============================================================================
 
+let cropMode = "overlay"; // "overlay" | "avatar"
 let cropSourceImg = null; // Image object chargée
 let cropImgOffsetX = 0;   // position de l'image dans .crop-area
 let cropImgOffsetY = 0;
@@ -1735,13 +1906,14 @@ let cropBoxNY = 0;
 let cropBoxNW = 0;
 let cropBoxNH = 0;
 
-function openCropModal(dataUrl) {
+function openCropModal(dataUrl, mode) {
+  cropMode = mode || "overlay";
   cropSourceImg = new Image();
   cropSourceImg.onload = () => {
     cropImg.src = dataUrl;
     modalCrop.classList.remove("hidden");
+    cropBox.classList.toggle("avatar-mode", cropMode === "avatar");
 
-    // Attendre que l'image soit rendue pour connaître ses dimensions CSS
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         const rect = cropImg.getBoundingClientRect();
@@ -1755,8 +1927,17 @@ function openCropModal(dataUrl) {
         const margin = 0.1;
         cropBoxNX = Math.round(cropSourceImg.naturalWidth * margin);
         cropBoxNY = Math.round(cropSourceImg.naturalHeight * margin);
-        cropBoxNW = Math.round(cropSourceImg.naturalWidth * (1 - 2 * margin));
-        cropBoxNH = Math.round(cropSourceImg.naturalHeight * (1 - 2 * margin));
+        let nw = Math.round(cropSourceImg.naturalWidth * (1 - 2 * margin));
+        let nh = Math.round(cropSourceImg.naturalHeight * (1 - 2 * margin));
+        // Avatar : forcer carré centré
+        if (cropMode === "avatar") {
+          const s = Math.min(nw, nh);
+          cropBoxNX = Math.round((cropSourceImg.naturalWidth - s) / 2);
+          cropBoxNY = Math.round((cropSourceImg.naturalHeight - s) / 2);
+          nw = s; nh = s;
+        }
+        cropBoxNW = nw;
+        cropBoxNH = nh;
         updateCropBoxDOM();
       });
     });
@@ -1871,6 +2052,15 @@ document.querySelectorAll(".crop-handle").forEach((handle) => {
       h = Math.max(MIN, h + dy);
     }
 
+    // Avatar : forcer carré (prendre le côté le plus petit)
+    if (cropMode === "avatar") {
+      const s = Math.min(w, h);
+      if (handleCorner === "tl") { x += w - s; y += h - s; }
+      else if (handleCorner === "tr") { y += h - s; }
+      else if (handleCorner === "bl") { x += w - s; }
+      w = s; h = s;
+    }
+
     // Clamp dans les limites de l'image
     x = Math.max(0, x);
     y = Math.max(0, y);
@@ -1892,23 +2082,34 @@ document.querySelectorAll(".crop-handle").forEach((handle) => {
 btnCropConfirm.addEventListener("click", () => {
   if (!cropSourceImg) return;
 
-  // Extraire la region croppée
+  if (cropMode === "avatar") {
+    // Avatar : 64×64 avec clip circulaire
+    const SIZE = 64;
+    const tmpCanvas = document.createElement("canvas");
+    tmpCanvas.width = SIZE; tmpCanvas.height = SIZE;
+    const c = tmpCanvas.getContext("2d");
+    c.beginPath(); c.arc(SIZE/2, SIZE/2, SIZE/2, 0, Math.PI*2); c.clip();
+    c.drawImage(cropSourceImg, cropBoxNX, cropBoxNY, cropBoxNW, cropBoxNH, 0, 0, SIZE, SIZE);
+    const dataUrl = tmpCanvas.toDataURL("image/webp", 0.85);
+    modalCrop.classList.add("hidden");
+    cropBox.classList.remove("avatar-mode");
+    cropSourceImg = null;
+    createAvatarData = { type: "image", value: dataUrl };
+    emojiPickerGrid.classList.add("hidden");
+    updateAvatarPreview();
+    return;
+  }
+
+  // Overlay : comportement existant
   const MAX = 800;
-  let w = cropBoxNW;
-  let h = cropBoxNH;
+  let w = cropBoxNW, h = cropBoxNH;
   if (w > MAX || h > MAX) {
     const r = Math.min(MAX / w, MAX / h);
-    w = Math.round(w * r);
-    h = Math.round(h * r);
+    w = Math.round(w * r); h = Math.round(h * r);
   }
   const tmpCanvas = document.createElement("canvas");
-  tmpCanvas.width = w;
-  tmpCanvas.height = h;
-  tmpCanvas.getContext("2d").drawImage(
-    cropSourceImg,
-    cropBoxNX, cropBoxNY, cropBoxNW, cropBoxNH,
-    0, 0, w, h
-  );
+  tmpCanvas.width = w; tmpCanvas.height = h;
+  tmpCanvas.getContext("2d").drawImage(cropSourceImg, cropBoxNX, cropBoxNY, cropBoxNW, cropBoxNH, 0, 0, w, h);
   const compressed = tmpCanvas.toDataURL("image/jpeg", 0.8);
 
   modalCrop.classList.add("hidden");
@@ -1929,7 +2130,9 @@ btnCropConfirm.addEventListener("click", () => {
 // --- Annuler le crop ---
 btnCropCancel.addEventListener("click", () => {
   modalCrop.classList.add("hidden");
+  cropBox.classList.remove("avatar-mode");
   cropSourceImg = null;
+  cropMode = "overlay";
 });
 
 // =============================================================================

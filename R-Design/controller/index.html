@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
     <title>Pixel War — Controller</title>
     <link rel="stylesheet" href="style.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   </head>
   <body>
 
@@ -240,6 +241,19 @@
           <div id="create-team-form" class="create-team-form hidden">
             <input type="text" id="team-name" placeholder="Nom de l'equipe" maxlength="24" autocomplete="off" />
             <div id="team-color-picker" class="team-color-picker"></div>
+            <div class="avatar-picker-section">
+              <span class="create-section-label">Avatar (optionnel)</span>
+              <div class="avatar-picker-row">
+                <div id="create-avatar-preview" class="team-avatar" style="width:40px;height:40px;font-size:22px;flex-shrink:0"></div>
+                <div class="avatar-picker-buttons">
+                  <button type="button" id="btn-avatar-emoji" class="btn-avatar-opt">😀 Emoji</button>
+                  <button type="button" id="btn-avatar-image" class="btn-avatar-opt">🖼 Photo</button>
+                  <button type="button" id="btn-avatar-reset" class="btn-avatar-opt">✕ Couleur</button>
+                </div>
+              </div>
+              <div id="emoji-picker-grid" class="emoji-picker-grid hidden"></div>
+            </div>
+            <input type="file" id="avatar-file-input" accept="image/*" style="display:none" />
             <button id="btn-create-team" class="btn-primary full-width">Creer</button>
           </div>
         </div>
@@ -261,7 +275,7 @@
       <div id="tab-team-detail" class="tab-content hidden">
 
         <div class="detail-header">
-          <button id="btn-back-teams" class="btn-back">← Retour</button>
+          <button id="btn-back-teams" class="btn-secondary">← Retour</button>
           <div id="detail-team-dot" class="team-dot-big"></div>
           <div class="detail-title">
             <h3 id="detail-team-name">—</h3>
@@ -273,6 +287,7 @@
 
         <button id="btn-detail-join" class="btn-primary full-width">Rejoindre</button>
         <button id="btn-detail-leave" class="btn-danger full-width hidden">Quitter l'equipe</button>
+        <button id="btn-detail-invite" class="btn-secondary full-width">Inviter</button>
 
         <!-- Section template (visible uniquement pour le leader) -->
         <div id="overlay-section" class="overlay-section hidden">
@@ -314,6 +329,19 @@
 
     <!-- Toast notifications -->
     <div id="toast-container" class="toast-container"></div>
+
+    <!-- Modal Invite -->
+    <div id="modal-invite" class="modal-invite hidden">
+      <div class="modal-invite-content">
+        <div class="modal-invite-header">
+          <span id="modal-invite-team-name" class="modal-invite-title">Inviter</span>
+          <button id="btn-invite-close" class="btn-close-modal">✕</button>
+        </div>
+        <p class="modal-invite-hint">Scannez pour rejoindre l'équipe directement</p>
+        <div id="invite-qr" class="invite-qr"></div>
+        <p id="invite-url" class="invite-url"></p>
+      </div>
+    </div>
 
     <script src="script.js"></script>
   </body>

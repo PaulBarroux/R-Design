@@ -48,6 +48,13 @@ const btnOverlayDelete   = document.getElementById("btn-overlay-delete");
 const btnOverlayAdd      = document.getElementById("btn-overlay-add");
 const overlayFileInput   = document.getElementById("overlay-file-input");
 
+const adminOverlaysContainer = document.getElementById("admin-overlays-container");
+const templatesPanel         = document.getElementById("templates-panel");
+const btnTemplatesToggle     = document.getElementById("btn-templates-toggle");
+const templatesBadge         = document.getElementById("templates-badge");
+const templatesChevron       = document.getElementById("templates-chevron");
+const templatesListEl        = document.getElementById("templates-list");
+
 // ── ETAT LOCAL ───────────────────────────────────────────────────────────────
 
 let ws = null;
@@ -71,10 +78,15 @@ const MAX_ZOOM = 20;
 const CANVAS_PAD_H = 100;
 const CANVAS_PAD_BOTTOM = 200;
 
+let adminOverlayVisible = {}; // teamId -> bool
+let adminOverlayEls    = {}; // teamId -> img element
+let templatesPanelOpen = false;
+
 let touchState = null;
 let mouseDrag = null;
-let adminMode = "move"; // "move" ou "draw"
+let adminMode = "move"; // "move" | "draw" | "bomb"
 const btnModeToggle = document.getElementById("btn-mode-toggle");
+const btnBombMode   = document.getElementById("btn-bomb-mode");
 
 // =============================================================================
 // TABS
@@ -196,6 +208,7 @@ function connectWS() {
       renderCanvas(canvasData);
       renderPlayersList();
       renderTeamsList();
+      renderTemplatesPanel();
       updateViewport();
     }
     if (type === "pixelUpdate") {
@@ -212,6 +225,7 @@ function connectWS() {
     if (type === "teamsUpdate") {
       teamsData = data;
       renderTeamsList();
+      renderTemplatesPanel();
       renderPlayersList();
       if (detailTeamId) renderTeamDetail(detailTeamId);
     }
@@ -231,6 +245,10 @@ function send(type, data) {
 // PALETTE
 // =============================================================================
 
+const LIGHT_COLORS = new Set([
+  "#FFFFFF","#FFF8B8","#D5D7D9","#D4D7D9","#94B3FF","#51E9F4","#FED734","#FEA800","#FFB470","#FF99AA",
+]);
+
 function buildPalette(colors) {
   palette = colors;
   paletteEl.innerHTML = "";
@@ -238,9 +256,7 @@ function buildPalette(colors) {
     const btn = document.createElement("div");
     btn.className = "palette-color";
     btn.style.background = color;
-    if (["#FFFFFF", "#D4D7D9", "#D5D7D9", "#FFF8B8", "#94B3FF", "#51E9F4", "#FEA800", "#FED734"].includes(color)) {
-      btn.style.border = "2px solid #555";
-    }
+    if (LIGHT_COLORS.has(color)) btn.dataset.light = "";
     btn.addEventListener("click", () => {
       document.querySelectorAll(".palette-color").forEach((b) => b.classList.remove("selected"));
       btn.classList.add("selected");
@@ -339,18 +355,33 @@ function updateViewport() {
   const ratio = zoomLevel / CANVAS_FILL_ZOOM;
   zoomLevelEl.textContent = (ratio >= 1 ? Math.round(ratio) : Math.round(ratio * 10) / 10) + "x";
   updatePixelCursor();
+  updateAllAdminOverlays();
 }
 
 // =============================================================================
-// MODE TOGGLE (move / draw)
+// MODE TOGGLE (move / draw / bomb) — 3 boutons radio indépendants
 // =============================================================================
 
-btnModeToggle.addEventListener("click", () => {
-  adminMode = adminMode === "move" ? "draw" : "move";
-  btnModeToggle.textContent = adminMode === "move" ? "✋" : "✏️";
-  btnModeToggle.className = "ctrl-btn mode-" + adminMode;
-  btnModeToggle.title = adminMode === "move" ? "Mode deplacement" : "Mode dessin";
+function setAdminMode(mode) {
+  adminMode = mode;
+  // btnModeToggle : actif uniquement en mode dessin
+  btnModeToggle.textContent = "✏️";
+  btnModeToggle.title = "Mode dessin";
+  btnModeToggle.classList.toggle("mode-draw", adminMode === "draw");
+  btnModeToggle.classList.toggle("mode-move", adminMode !== "draw");
+  // btnBombMode : actif uniquement en mode bombe
+  btnBombMode.classList.toggle("mode-draw", adminMode === "bomb");
+  // curseur
   canvasEl.style.cursor = adminMode === "move" ? "grab" : "crosshair";
+}
+
+// Mode déplacement : bouton séparé (✋) ou clic sur btnModeToggle quand déjà en dessin
+btnModeToggle.addEventListener("click", () => {
+  setAdminMode(adminMode === "draw" ? "move" : "draw");
+});
+
+btnBombMode.addEventListener("click", () => {
+  setAdminMode(adminMode === "bomb" ? "move" : "bomb");
 });
 
 // =============================================================================
@@ -444,10 +475,10 @@ canvasContainer.addEventListener("wheel", (e) => {
 }, { passive: false });
 
 canvasContainer.addEventListener("mousedown", (e) => {
-  // Middle/right click always pans, left click pans only in move mode
-  if (e.button === 1 || e.button === 2 || (e.button === 0 && adminMode === "move")) {
-    mouseDrag = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY, moved: false };
-    e.preventDefault();
+  // Clic gauche : pan en mode déplacement, ou initialise le drag pour tous les modes
+  if (e.button === 0 || e.button === 1 || e.button === 2) {
+    mouseDrag = { startX: e.clientX, startY: e.clientY, startPanX: panX, startPanY: panY, moved: false, button: e.button };
+    if (e.button === 1 || e.button === 2 || adminMode === "move") e.preventDefault();
   }
 });
 
@@ -456,9 +487,12 @@ window.addEventListener("mousemove", (e) => {
     const dx = e.clientX - mouseDrag.startX;
     const dy = e.clientY - mouseDrag.startY;
     if (Math.abs(dx) > 3 || Math.abs(dy) > 3) mouseDrag.moved = true;
-    panX = mouseDrag.startPanX - dx;
-    panY = mouseDrag.startPanY - dy;
-    updateViewport();
+    // Pan uniquement en mode déplacement ou clic milieu/droit
+    if (mouseDrag.button !== 0 || adminMode === "move") {
+      panX = mouseDrag.startPanX - dx;
+      panY = mouseDrag.startPanY - dy;
+      updateViewport();
+    }
     return;
   }
   const rect = canvasContainer.getBoundingClientRect();
@@ -468,12 +502,28 @@ window.addEventListener("mousemove", (e) => {
     ? `(${px}, ${py})` : "—";
 });
 
-window.addEventListener("mouseup", () => { mouseDrag = null; });
+window.addEventListener("mouseup", (e) => {
+  if (!mouseDrag) return;
+  const wasMoved = mouseDrag.moved;
+  const startX = mouseDrag.startX, startY = mouseDrag.startY;
+  mouseDrag = null;
+  // Déclencher l'action seulement si pas de déplacement significatif
+  if (!wasMoved && e.button === 0) {
+    if (adminMode === "draw") handlePixelTap(startX, startY);
+    if (adminMode === "bomb") handleBombTap(startX, startY);
+  }
+});
 canvasContainer.addEventListener("contextmenu", (e) => e.preventDefault());
 
-canvasContainer.addEventListener("click", (e) => {
-  if (e.button === 0 && adminMode === "draw") handlePixelTap(e.clientX, e.clientY);
-});
+function handleBombTap(clientX, clientY) {
+  if (!selectedColor) return;
+  const rect = canvasContainer.getBoundingClientRect();
+  const cx = Math.floor((panX + clientX - rect.left - CANVAS_PAD_H) / zoomLevel);
+  const cy = Math.floor((panY + clientY - rect.top  - CANVAS_PAD_H) / zoomLevel);
+  // Centre du 5x5 sur le clic
+  send("adminBomb", { x: cx - 2, y: cy - 2, color: selectedColor });
+  coordsText.textContent = `(${cx}, ${cy})`;
+}
 
 function handlePixelTap(clientX, clientY) {
   const rect = canvasContainer.getBoundingClientRect();
@@ -678,3 +728,113 @@ overlayFileInput.addEventListener("change", () => {
   };
   reader.readAsDataURL(file);
 });
+
+// =============================================================================
+// TEMPLATES PANEL
+// =============================================================================
+
+btnTemplatesToggle.addEventListener("click", () => {
+  templatesPanelOpen = !templatesPanelOpen;
+  templatesListEl.classList.toggle("hidden", !templatesPanelOpen);
+  templatesChevron.textContent = templatesPanelOpen ? "▲" : "▼";
+});
+
+function renderTemplatesPanel() {
+  const teamsWithOverlay = Object.values(teamsData).filter(t => t.overlay);
+  templatesBadge.textContent = teamsWithOverlay.length;
+
+  // Clean up removed teams
+  for (const id of Object.keys(adminOverlayEls)) {
+    if (!teamsData[id] || !teamsData[id].overlay) {
+      adminOverlayEls[id]?.remove();
+      delete adminOverlayEls[id];
+      delete adminOverlayVisible[id];
+    }
+  }
+
+  templatesListEl.innerHTML = "";
+  if (teamsWithOverlay.length === 0) {
+    templatesListEl.innerHTML = '<p class="muted" style="padding:0.5rem 0;margin:0;font-size:0.8rem">Aucun template</p>';
+    return;
+  }
+
+  teamsWithOverlay.forEach((team) => {
+    const row = document.createElement("div");
+    row.className = "template-row";
+
+    const dot = document.createElement("div");
+    dot.className = "team-dot";
+    dot.style.cssText = `width:10px;height:10px;border-radius:50%;background:${team.color};flex-shrink:0`;
+
+    const name = document.createElement("span");
+    name.className = "template-team-name";
+    name.textContent = team.name;
+
+    const btnToggle = document.createElement("button");
+    btnToggle.className = "btn-template-toggle " + (adminOverlayVisible[team.id] ? "active" : "");
+    btnToggle.textContent = adminOverlayVisible[team.id] ? "👁" : "👁";
+    btnToggle.title = "Afficher/masquer";
+    btnToggle.addEventListener("click", () => {
+      adminOverlayVisible[team.id] = !adminOverlayVisible[team.id];
+      btnToggle.classList.toggle("active", adminOverlayVisible[team.id]);
+      updateAdminOverlayEl(team.id);
+    });
+
+    const btnDel = document.createElement("button");
+    btnDel.className = "btn-template-delete";
+    btnDel.textContent = "✕";
+    btnDel.title = "Supprimer le template";
+    btnDel.addEventListener("click", () => {
+      send("adminDeleteOverlay", { teamId: team.id });
+      adminOverlayEls[team.id]?.remove();
+      delete adminOverlayEls[team.id];
+      delete adminOverlayVisible[team.id];
+      row.remove();
+      // update badge
+      templatesBadge.textContent = parseInt(templatesBadge.textContent) - 1;
+    });
+
+    row.appendChild(dot);
+    row.appendChild(name);
+    row.appendChild(btnToggle);
+    row.appendChild(btnDel);
+    templatesListEl.appendChild(row);
+
+    // Ensure overlay el exists
+    if (!adminOverlayEls[team.id]) {
+      const img = document.createElement("img");
+      img.draggable = false;
+      img.style.cssText = "position:absolute;pointer-events:none;image-rendering:pixelated;display:none;";
+      img.onload = () => updateAdminOverlayEl(team.id);
+      adminOverlaysContainer.appendChild(img);
+      adminOverlayEls[team.id] = img;
+    }
+    updateAdminOverlayEl(team.id);
+  });
+}
+
+function updateAdminOverlayEl(teamId) {
+  const img = adminOverlayEls[teamId];
+  const team = teamsData[teamId];
+  if (!img || !team || !team.overlay) { img && (img.style.display = "none"); return; }
+  if (!adminOverlayVisible[teamId]) { img.style.display = "none"; return; }
+  const ov = team.overlay;
+  img.src = ov.imageData;
+  img.style.display = "block";
+  img.style.opacity = ov.opacity != null ? ov.opacity : 0.5;
+  img.style.left = (CANVAS_PAD_H + ov.x * zoomLevel) + "px";
+  img.style.top  = (CANVAS_PAD_H + ov.y * zoomLevel) + "px";
+  // Même formule que controller applyOverlayTransform :
+  // scale 1 = l'image couvre la largeur entière du canvas
+  const imgW = img.naturalWidth || 1;
+  const imgH = img.naturalHeight || 1;
+  const targetW = canvasSize.width * (ov.scale != null ? ov.scale : 1) * zoomLevel;
+  img.style.width  = targetW + "px";
+  img.style.height = (imgH * (targetW / imgW)) + "px";
+}
+
+function updateAllAdminOverlays() {
+  for (const teamId of Object.keys(adminOverlayEls)) {
+    updateAdminOverlayEl(teamId);
+  }
+}

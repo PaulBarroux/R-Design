@@ -907,6 +907,8 @@ input:focus { border-color: #222; }
   flex-direction: column;
   align-items: flex-end;
   gap: 1px;
+  min-width: 0;
+  overflow: hidden;
 }
 
 #coords-text {
@@ -921,7 +923,7 @@ input:focus { border-color: #222; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  max-width: 100%;
   display: flex;
   align-items: center;
   gap: 3px;
@@ -946,18 +948,24 @@ input:focus { border-color: #222; }
 .palette-color {
   aspect-ratio: 1;
   width: 100%;
-  border-radius: 10px;
-  border: 3px solid transparent;
+  border-radius: 8px;
+  border: none;
   cursor: pointer;
-  transition: transform 0.1s, border-color 0.15s;
+  transition: transform 0.1s, box-shadow 0.1s;
+  position: relative;
+}
+
+/* Couleurs très claires : liseré externe pour les distinguer du fond */
+.palette-color[data-light] {
+  box-shadow: 0 0 0 1.5px rgba(0,0,0,0.14);
 }
 
 .palette-color:active { transform: scale(0.88); }
 
 .palette-color.selected {
-  border-color: white;
-  transform: scale(1.08);
-  box-shadow: 0 0 8px rgba(0,0,0,0.3);
+  transform: scale(1.18);
+  box-shadow: 0 0 0 2.5px #fff, 0 0 0 5px #1a1a1a !important;
+  z-index: 2;
 }
 
 /* (Cooldown bar moved to bottom sheet as .sheet-timer-bar) */
@@ -1101,6 +1109,10 @@ input:focus { border-color: #222; }
   background: #ccc;
   flex-shrink: 0;
   box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 /* Creer une equipe (expandable) */
@@ -1138,6 +1150,12 @@ input:focus { border-color: #222; }
   width: 100%;
   padding: 0.5rem 0;
   border-bottom: 1px solid #e0e0e0;
+}
+
+.detail-header .btn-secondary {
+  width: auto;
+  padding: 0.4rem 0.9rem;
+  flex-shrink: 0;
 }
 
 .btn-back {
@@ -1382,6 +1400,11 @@ input:focus { border-color: #222; }
   cursor: move;
 }
 
+/* Mode avatar : aperçu circulaire */
+.crop-box.avatar-mode {
+  border-radius: 50%;
+}
+
 .crop-handle {
   position: absolute;
   width: 22px;
@@ -1395,6 +1418,187 @@ input:focus { border-color: #222; }
 .crop-handle-tr { top: -11px; right: -11px; cursor: nesw-resize; }
 .crop-handle-bl { bottom: -11px; left: -11px; cursor: nesw-resize; }
 .crop-handle-br { bottom: -11px; right: -11px; cursor: nwse-resize; }
+
+/* =============================================================================
+   MODAL INVITE
+   ============================================================================= */
+
+.modal-invite {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.modal-invite.hidden {
+  display: none;
+}
+
+.modal-invite-content {
+  background: #1a1a1a;
+  border-radius: 16px;
+  padding: 1.25rem;
+  width: 100%;
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modal-invite-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-invite-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0.2rem 0.4rem;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.btn-close-modal:hover {
+  color: #fff;
+  background: rgba(255,255,255,0.1);
+}
+
+.modal-invite-hint {
+  font-size: 0.78rem;
+  color: #aaa;
+  margin: 0;
+  text-align: center;
+}
+
+.invite-qr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.invite-qr img,
+.invite-qr canvas {
+  display: block;
+}
+
+.invite-url {
+  font-size: 0.72rem;
+  color: #888;
+  word-break: break-all;
+  text-align: center;
+  margin: 0;
+}
+
+/* =============================================================================
+   AVATAR D'EQUIPE
+   ============================================================================= */
+
+.team-avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  background-size: cover;
+  background-position: center;
+  font-size: 0.9em;
+  line-height: 1;
+}
+
+.avatar-picker-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+}
+
+.create-section-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #888;
+}
+
+.avatar-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.avatar-picker-buttons {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.btn-avatar-opt {
+  background: none;
+  border: 1.5px solid #ddd;
+  border-radius: 20px;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: #444;
+  white-space: nowrap;
+}
+
+.btn-avatar-opt:active {
+  background: #f0f0f0;
+}
+
+.emoji-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 4px;
+  background: #f5f5f5;
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.emoji-picker-grid.hidden {
+  display: none;
+}
+
+.emoji-option {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.3rem;
+  border-radius: 8px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  background: transparent;
+  padding: 0;
+  transition: background 0.1s;
+}
+
+.emoji-option:active,
+.emoji-option.selected {
+  background: #e0e0e0;
+  border-color: #bbb;
+}
 
 /* =============================================================================
    DESKTOP — adaptations pour ecrans larges (>600px)
@@ -1441,6 +1645,11 @@ input:focus { border-color: #222; }
   }
 
   /* --- Contenu des tabs equipe : limite en largeur --- */
+  #tab-team .profile-card,
+  #tab-team .my-team-banner,
+  #tab-team .create-team-section,
+  #tab-team .search-bar,
+  #tab-team .avatar-picker-section,
   #tab-team .teams-list,
   #tab-team .team-header,
   #tab-team .members-list,
@@ -1451,7 +1660,10 @@ input:focus { border-color: #222; }
   #tab-team-detail .members-list,
   #tab-team-detail .separator,
   #tab-team-detail .overlay-section,
-  #tab-team-detail .btn-toggle-create {
+  #tab-team-detail .btn-toggle-create,
+  #tab-team-detail .btn-primary,
+  #tab-team-detail .btn-danger,
+  #tab-team-detail > .btn-secondary {
     max-width: 480px;
     width: 100%;
   }

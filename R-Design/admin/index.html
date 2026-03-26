@@ -57,6 +57,8 @@
           <div id="canvas-viewport">
             <canvas id="pixel-canvas"></canvas>
             <div id="pixel-cursor" class="hidden"></div>
+            <!-- Overlays equipes (templates visibles admin) -->
+            <div id="admin-overlays-container"></div>
           </div>
         </div>
 
@@ -69,9 +71,20 @@
             <button id="btn-zoom-in" class="ctrl-btn">+</button>
             <span class="spacer"></span>
             <button id="btn-mode-toggle" class="ctrl-btn mode-move" title="Mode deplacement">✋</button>
+            <button id="btn-bomb-mode" class="ctrl-btn" title="Mode bombe 5x5">💣</button>
             <div class="pixel-info">
               <span id="coords-text">—</span>
             </div>
+          </div>
+
+          <!-- Panel templates equipes -->
+          <div id="templates-panel" class="templates-panel">
+            <button id="btn-templates-toggle" class="templates-panel-toggle">
+              <span>Templates</span>
+              <span id="templates-badge" class="templates-badge">0</span>
+              <span id="templates-chevron" class="templates-chevron">▼</span>
+            </button>
+            <div id="templates-list" class="templates-list"></div>
           </div>
 
           <span class="sheet-section-label">Couleurs</span>

@@ -111,6 +111,27 @@ const CROWN_SMALL = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none"
 const PERSON_SVG = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
 
 // =============================================================================
+// LEADERBOARD — AVATAR D'EQUIPE
+// =============================================================================
+
+function makeAvatarHtml(team, size) {
+  const sz = size || 32;
+  const avatar = team.avatar;
+  let style = `width:${sz}px;height:${sz}px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:${Math.round(sz*0.55)}px;overflow:hidden;flex-shrink:0;`;
+  if (!avatar) {
+    style += `background:${team.color};`;
+    return `<div style="${style}"></div>`;
+  } else if (avatar.type === "emoji") {
+    style += `background:${team.color}33;`;
+    return `<div style="${style}">${escHtml(avatar.value)}</div>`;
+  } else if (avatar.type === "image") {
+    style += `background:${team.color};background-image:url(${escHtml(avatar.value)});background-size:cover;background-position:center;`;
+    return `<div style="${style}"></div>`;
+  }
+  return `<div style="${style}background:${team.color};"></div>`;
+}
+
+// =============================================================================
 // LEADERBOARD — RENDU JOUEURS
 // =============================================================================
 
@@ -135,7 +156,7 @@ function renderPlayers(list) {
           <span class="lb-name">${escHtml(e.pseudo)}</span>
           ${teamName ? `<span class="lb-team-sub">${escHtml(teamName)}</span>` : ""}
         </div>
-        <span class="lb-pts">${e.count} pts</span>
+        <span class="lb-pts">${e.count} px</span>
       </div>`;
   });
 
@@ -150,7 +171,7 @@ function renderPlayers(list) {
             <span class="lb-name">${escHtml(e.pseudo)}</span>
             ${teamName ? `<span class="lb-team-sub">${escHtml(teamName)}</span>` : ""}
           </div>
-          <span class="lb-pts">${e.count} pts</span>
+          <span class="lb-pts">${e.count} px</span>
         </div>`;
     });
   }
@@ -183,11 +204,11 @@ function renderTeams(list) {
       <div class="podium-item rank-${rank}">
         ${isFirst ? `<div class="podium-crown">👑</div>` : ""}
         <div class="podium-avatar">
-          ${PERSON_SVG}
+          ${makeAvatarHtml(team, 40)}
           <div class="podium-badge">${rank}</div>
         </div>
         <span class="podium-name">${escHtml(team.name)}</span>
-        <span class="podium-pts">🏆 ${team.count} pts</span>
+        <span class="podium-pts">🏆 ${team.count} px</span>
         <span class="podium-members">${team.memberCount} membre${team.memberCount > 1 ? "s" : ""}</span>
       </div>`;
   });
@@ -202,13 +223,13 @@ function renderTeams(list) {
         <div class="lb-entry">
           <span class="lb-rank-num">${i + 4}</span>
           <div class="lb-info-team">
-            <div class="lb-team-icon">${PERSON_SVG}</div>
+            <div class="lb-team-icon">${makeAvatarHtml(team, 24)}</div>
             <div class="lb-info">
               <span class="lb-name">${escHtml(team.name)}</span>
               <span class="lb-team-sub">${team.memberCount} membre${team.memberCount > 1 ? "s" : ""}</span>
             </div>
           </div>
-          <span class="lb-pts">${team.count} pts</span>
+          <span class="lb-pts">${team.count} px</span>
         </div>`;
     });
   }

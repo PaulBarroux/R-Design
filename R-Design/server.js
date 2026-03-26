@@ -245,6 +245,7 @@ function getLeaderboard() {
       name: teams[teamId] ? teams[teamId].name : "???",
       color: teams[teamId] ? teams[teamId].color : "#888",
       memberCount: teams[teamId] ? teams[teamId].members.length : 0,
+      avatar: teams[teamId] ? (teams[teamId].avatar || null) : null,
       count,
     }))
     .sort((a, b) => b.count - a.count)
@@ -314,6 +315,7 @@ function getTeamsPublicData() {
       overlay: team.overlay || null,
       pixelCount: getTeamPixelCount(id),
       diamondPixels: team.diamondPixels || 0,
+      avatar: team.avatar || null,
       accelEndsAt: teamAccelBuffs[id] && teamAccelBuffs[id].endsAt > Date.now() ? teamAccelBuffs[id].endsAt : null,
       members: team.members.map((pid) => ({
         id: pid,
@@ -364,6 +366,18 @@ function removePlayerFromTeam(playerId, teamId) {
     team.creatorId = team.members[0];
     log.team(`Nouveau createur de "${team.name}": ${players[team.members[0]]?.pseudo}`);
   }
+}
+
+function validateAvatar(a) {
+  if (!a || typeof a !== "object") return null;
+  if (a.type === "emoji" && typeof a.value === "string" && a.value.length <= 8) {
+    return { type: "emoji", value: a.value };
+  }
+  if (a.type === "image" && typeof a.value === "string"
+      && a.value.startsWith("data:image/") && a.value.length < 100000) {
+    return { type: "image", value: a.value };
+  }
+  return null;
 }
 
 // =============================================================================
@@ -498,6 +512,24 @@ wss.on("connection", (ws) => {
       return;
     }
 
+    // === ADMIN BOMB (5x5, anonyme, sans points) ===
+    if (type === "adminBomb") {
+      if (!ws._isAdmin) return;
+      const { x, y, color } = data;
+      if (!COLOR_PALETTE.includes(color)) return;
+      for (let dy = 0; dy < 5; dy++) {
+        for (let dx = 0; dx < 5; dx++) {
+          const px = x + dx, py = y + dy;
+          if (px >= 0 && px < CANVAS_WIDTH && py >= 0 && py < CANVAS_HEIGHT) {
+            canvas[py][px] = color;
+            broadcastPixelUpdate(px, py, color, null);
+          }
+        }
+      }
+      log.pixel(`[ADMIN BOMBE] (${x},${y}) ${color}`);
+      return;
+    }
+
     // === ADMIN PLACE PIXEL (anonyme, sans points) ===
     if (type === "adminPlacePixel") {
       if (!ws._isAdmin) return;
@@ -541,7 +573,7 @@ wss.on("connection", (ws) => {
       }
       log.pixel(`[BOMBE] ${player.pseudo} (${x},${y}) ${color} — ${pixels.length}px`);
       // Broadcast tous les pixels modifies
-      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, color, null);
+      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, color, playerId);
       send(ws, "powerUsed", { power: "bomb", goldPixels: player.goldPixels });
       updatePlayerActivity(playerId);
       return;
@@ -674,7 +706,7 @@ wss.on("connection", (ws) => {
       team.diamondPixels -= POWER_COLOR_REPLACE_COST;
       for (const p of pixels) canvas[p.y][p.x] = newColor;
       log.pixel(`[REMPLACEMENT] ${player.pseudo} (${x},${y}) ${targetColor}→${newColor} — ${pixels.length}px`);
-      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, newColor, null);
+      for (const p of pixels) broadcastPixelUpdate(p.x, p.y, newColor, playerId);
       send(ws, "powerUsed", { power: "colorReplace", diamondPixels: team.diamondPixels });
       updatePlayerActivity(playerId);
       return;
@@ -812,11 +844,12 @@ wss.on("connection", (ws) => {
 
       if (player.teamId && teams[player.teamId]) removePlayerFromTeam(playerId, player.teamId);
 
+      const avatar = validateAvatar(data.avatar);
       const teamId = String(nextTeamId++);
       teams[teamId] = {
         id: teamId, name, color, creatorId: playerId,
         members: [playerId], overlay: null, createdAt: Date.now(),
-        diamondPixels: 0,
+        diamondPixels: 0, avatar,
       };
       player.teamId = teamId;
       updatePlayerActivity(playerId);

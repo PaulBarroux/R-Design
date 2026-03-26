@@ -190,6 +190,11 @@
   border-color: #3690EA;
   color: #3690EA;
 }
+#btn-bomb-mode.mode-draw {
+  background: #e9456022;
+  border-color: #e94560;
+  color: #e94560;
+}
 
 /* Tab detail equipe : meme style que #tab-team du controller */
 #tab-team-detail {
@@ -198,6 +203,112 @@
   gap: 0.75rem;
   align-items: center;
   background: #f8f8f8;
+}
+
+/* Templates panel */
+.templates-panel {
+  width: 100%;
+  flex-shrink: 0;
+}
+
+.templates-panel-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0.3rem 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: #888;
+}
+
+.templates-badge {
+  background: #3690EA;
+  color: #fff;
+  border-radius: 20px;
+  padding: 0 0.4rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  min-width: 16px;
+  text-align: center;
+}
+
+.templates-chevron {
+  margin-left: auto;
+  font-size: 0.7rem;
+  opacity: 0.6;
+}
+
+.templates-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0.25rem 0 0.5rem;
+}
+
+.templates-list.hidden {
+  display: none;
+}
+
+.template-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.8rem;
+}
+
+.template-team-name {
+  flex: 1;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-template-toggle {
+  background: none;
+  border: 1.5px solid #ccc;
+  border-radius: 6px;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  opacity: 0.4;
+  flex-shrink: 0;
+}
+
+.btn-template-toggle.active {
+  opacity: 1;
+  border-color: #3690EA;
+  background: #3690EA11;
+}
+
+.btn-template-delete {
+  background: none;
+  border: 1.5px solid #e9456066;
+  color: #e94560;
+  border-radius: 6px;
+  padding: 0.15rem 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.btn-template-delete:active { background: #e9456022; }
+
+/* Overlay container inside canvas-viewport */
+#admin-overlays-container {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 /* Desktop : contenu des tabs admin limite en largeur */
