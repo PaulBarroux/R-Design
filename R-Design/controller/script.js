@@ -30,6 +30,7 @@ const btnSmsId = document.getElementById("btn-sms-id");
 const modalOnboarding      = document.getElementById("modal-onboarding");
 const btnOnboardingNext    = document.getElementById("btn-onboarding-next");
 const btnOnboardingPrev    = document.getElementById("btn-onboarding-prev");
+const btnOnboardingSkip    = document.getElementById("btn-onboarding-skip");
 const onboardingStepEls    = document.querySelectorAll(".onboarding-step");
 const onboardingDotEls     = document.querySelectorAll(".onboarding-dot");
 
@@ -324,6 +325,11 @@ btnOnboardingNext.addEventListener("click", () => {
 
 btnOnboardingPrev.addEventListener("click", () => {
   if (onboardingStep > 1) showOnboardingStep(onboardingStep - 1);
+});
+
+btnOnboardingSkip.addEventListener("click", () => {
+  modalOnboarding.classList.add("hidden");
+  showOnboardingStep(1);
 });
 
 // Copie universelle (fonctionne sans HTTPS)
